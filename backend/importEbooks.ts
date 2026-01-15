@@ -1,8 +1,14 @@
-import { PrismaClient } from '../generated/prisma/client'
+import { PrismaClient } from './generated/prisma/client.js';
+import { PrismaPg } from '@prisma/adapter-pg'
+
 import fs from 'fs';
 
-const prisma = new PrismaClient();
+const connectionString = `${process.env.DATABASE_URL}`
 
+const adapter = new PrismaPg({ connectionString })
+const prisma = new PrismaClient({ adapter })
+
+export { prisma }
 // function to read the .txt file
 async function main() {
 
@@ -55,3 +61,13 @@ async function main() {
 
     }
 }
+
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
