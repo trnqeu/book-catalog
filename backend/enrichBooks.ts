@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { PrismaClient } from './generated/prisma/client/index.js';
+import { PrismaClient } from './prisma/generated/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 import axios from 'axios';
@@ -23,7 +23,7 @@ async function enrich() {
 
     for (const book of books) {
         try {
-            const queryTitle = book.title.split('('[0]?.trim());
+            const queryTitle = book.title.split('(')[0].trim();
             const queryAuthor = book.author;
 
             console.log(`Searching: ${queryTitle} - ${queryAuthor}`);
@@ -43,8 +43,9 @@ async function enrich() {
                     data: {
                         description: data.description || "No available description",
                         publishingHouse: data.publisher || "Unknown",
-                        publishedDate: data.publisheddDate || "N.D.",
-                        coverUrl: data.imageLinks?.thumbnail?.replace('http:', 'https:') || null
+                        publishedDate: data.publishedDate || "N.D.",
+                        coverUrl: data.imageLinks?.thumbnail?.replace('http:', 'https:') || null,
+                        language: data.language ? data.language.toLowerCase() : book.language
                     }
                 });
                 console.log(`✅ [Updated] ${book.title}`);
@@ -56,9 +57,11 @@ async function enrich() {
                 });
             }
 
-            await delay(1000);
+            await delay(1200);
         } catch (error) {
             console.error(`Error during enrichment of ${book.title}:`, error);
+            
+        
         }
     }
 }
