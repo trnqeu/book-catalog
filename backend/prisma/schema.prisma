@@ -1,10 +1,11 @@
 generator client {
   provider = "prisma-client"
-  output   = "../generated/prisma"
+  output   = "../generated/prisma/client"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Book {
@@ -14,5 +15,8 @@ model Book {
   language        String?
   publishingHouse String?
   format          String
+  publishedDate   String?
+  description     String?
+  coverUrl        String?
   createdAt       DateTime @default(now())
 }
