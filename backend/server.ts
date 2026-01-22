@@ -74,6 +74,33 @@ app.get('/app/books/:id', async (req, res) => {
     }
 });
 
+// Authenticated route to add books
+app.post('/api/books', authenticateToken, async (req, res) => {
+    try {
+        const { title, author, description, coverUrl, publishingHouse, language, format } = req.body;
+
+        // Minimal validation for title
+        if (!title) return res.status(400).json({ error: "Title is mandatory" });
+
+        const newBook = await prisma.book.create({
+            data: {
+                title,
+                author: author,
+                description,
+                coverUrl,
+                publishingHouse,
+                language,
+                format: format || "Ebook"
+            }
+        });
+        console.log(`✅ Book saved: ${title}`)
+        res.status(201).json(newBook);
+} catch (error) {
+    console.error(`Error saving:`, error);
+    res.status(500).json({ error: "Error during database saving"});
+}
+});
+
 app.listen(port, () => {
     console.log(`Server listing on http://localhost:${port}`);
 });
