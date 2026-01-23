@@ -101,6 +101,25 @@ app.post('/api/books', authenticateToken, async (req, res) => {
 }
 });
 
+app.post('api/login', (req,res) => {
+    const { password } = req.body;
+
+    if (password === process.env.ADMIN_PASSWORD) {
+        // Generate token is password is ok
+        const token = jwt.sign(
+            {
+                sub: 'admin',
+                iss: 'trnq'
+            },
+            JWT_SECRET,
+            { expiresIn: '24h' } // the token expires every day
+        );
+        return res.json( { token });
+    }
+
+    res.status(401).json({ error: "Wrong password" });
+});
+
 app.listen(port, () => {
     console.log(`Server listing on http://localhost:${port}`);
 });
