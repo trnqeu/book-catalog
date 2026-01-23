@@ -101,7 +101,8 @@ app.post('/api/books', authenticateToken, async (req, res) => {
 }
 });
 
-app.post('api/login', (req,res) => {
+console.log("Configuring route /api/login...");
+app.post('/api/login', (req,res) => {
     const { password } = req.body;
 
     if (password === process.env.ADMIN_PASSWORD) {
