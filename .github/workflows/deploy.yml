@@ -20,4 +20,4 @@ jobs:
                 script: |
                     cd ~/services/book-catalog
                     git pull origin main
-                    docker compose up -d --build backend
+                    docker compose up -d --build
