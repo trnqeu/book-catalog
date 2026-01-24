@@ -1,0 +1,23 @@
+name: Deploy Backend
+
+on: 
+    push:
+        branches: [ main ]
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        steps: 
+            - name: Checkout code
+              uses: actions/checkout@v6
+
+            - name: Deploy to Server via SSH
+              uses: appleboy/ssh-acrion@master
+              with:
+                host: ${{ secrets.SERVER_IP }}
+                username: ${{ secrets.SERVER_USER }}
+                key: ${{ secrets.SSH_PRIVATE_KEY }}
+                script: |
+                    cd ~/services/book-catalog
+                    git pull origin main
+                    docker compose up -d --build backend
