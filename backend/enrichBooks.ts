@@ -57,7 +57,7 @@ async function enrich() {
                 });
             }
 
-            await delay(1200);
+            await delay(3000);
         } catch (error) {
             console.error(`Error during enrichment of ${book.title}:`, error);
             
