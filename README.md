@@ -1,118 +1,124 @@
-# Book Catalog
+# 📚 Book Catalog API
 
-This project is a simple book catalog application with a Node.js backend and a PostgreSQL database.
+A robust, containerized Node.js backend for managing a personal book catalog, featuring automated data enrichment via the Google Books API and secure JWT-based authentication.
 
-## Features
+---
 
--   List and search for books
--   Add new books
--   User authentication with JWT
--   Import books from a text file
--   Enrich book data using the Google Books API
+## 🚀 Features
 
-## Technology Stack
+-   **Comprehensive Book Management**: Create, list, search, and detail views for your library.
+-   **Smart Enrichment**: Automatically fetches descriptions, cover images, and publication details using the **Google Books API**.
+-   **Bulk Import**: Quickly seed your database from existing text-based lists.
+-   **Secure by Design**: Protected endpoints using **JWT (JSON Web Tokens)**.
+-   **Interactive API Docs**: Built-in **Swagger UI** for testing and exploration.
+-   **Containerized Environment**: Easy deployment and development using **Docker** and **Docker Compose**.
+-   **Type-Safe Architecture**: Built with **TypeScript** and **Prisma ORM** for maximum reliability.
 
--   **Backend**: Node.js, Express.js, TypeScript
--   **Database**: PostgreSQL
--   **ORM**: Prisma
--   **Containerization**: Docker
+---
 
-## Project Structure
+## 🛠 Technology Stack
 
-```
+-   **Language**: [TypeScript](https://www.typescriptlang.org/)
+-   **Framework**: [Express.js](https://expressjs.com/)
+-   **Database**: [PostgreSQL](https://www.postgresql.org/)
+-   **ORM**: [Prisma](https://www.prisma.io/)
+-   **Documentation**: [Swagger / OpenAPI 3.0](https://swagger.io/)
+-   **Containerization**: [Docker](https://www.docker.com/)
+
+---
+
+## 📂 Project Structure
+
+```bash
 .
-├── .github/                # GitHub Actions workflows
-│   └── workflows/
-│       └── deploy.yml
-├── backend/                # Node.js application
-│   ├── data/               # Data files for import
-│   ├── lib/                # Prisma client library
-│   ├── prisma/             # Prisma schema and migrations
-│   ├── Dockerfile
-│   ├── enrichBooks.ts      # Script to enrich book data
-│   ├── importEbooks.ts     # Script to import books
-│   ├── package.json
-│   ├── server.ts           # Express server
-│   └── tsconfig.json
-├── .gitignore
-├── docker-compose.yml      # Docker Compose configuration
+├── .github/workflows/    # CI/CD - Automated SSH deployment
+├── backend/
+│   ├── data/             # Seeding source files
+│   ├── prisma/           # Database schema & migrations
+│   ├── server.ts         # Main entry point & API routes
+│   ├── importEbooks.ts   # Bulk import utility
+│   └── enrichBooks.ts    # Google Books enrichment script
+├── docker-compose.yml    # Orchestrates PG and Adminer
 └── README.md
 ```
 
-## Getting Started
+---
 
-### Prerequisites
+## 🚦 Getting Started
 
--   Node.js and npm
--   Docker and Docker Compose
--   A `.env` file in the `backend` directory with the following variables:
-    ```
-    DATABASE_URL="postgresql://<user>:<password>@<host>:<port>/<database>"
-    JWT_SECRET="<your_jwt_secret>"
-    ADMIN_PASSWORD="<your_admin_password>"
-    ```
+### 1. Prerequisites
+- Docker & Docker Compose
+- Node.js (v20+ recommended)
 
-### Installation
+### 2. Environment Setup
+Create a `.env` file in the root directory (and ensure `backend/.env` is also present if running locally without Docker):
 
-1.  Clone the repository:
-    ```bash
-    git clone https://github.com/your-username/book-catalog.git
-    ```
-2.  Install the backend dependencies:
-    ```bash
-    cd book-catalog/backend
-    npm install
-    ```
-3.  Start the database and Adminer using Docker Compose:
-    ```bash
-    docker-compose up -d
-    ```
-4.  Apply the database migrations:
-    ```bash
-    npx prisma migrate dev
-    ```
+```env
+DATABASE_URL="postgresql://user:password@localhost:5432/book_catalog"
+JWT_SECRET="your_very_secret_key"
+ADMIN_PASSWORD="your_admin_access_password"
+PORT=3000
+```
 
-### Running the Application
+### 3. Installation & Database Setup
+```bash
+# Start infrastructure
+docker-compose up -d
 
--   **Development mode**:
-    ```bash
-    npm run dev
-    ```
--   **Production mode**:
-    ```bash
-    npm start
-    ```
+# Install dependencies (in /backend)
+cd backend
+npm install
 
-## API Endpoints
+# Initialize database
+npx prisma migrate dev
+```
 
--   `POST /api/login`: Authenticate and get a JWT token.
--   `GET /api/books`: Get a list of books (requires authentication).
--   `GET /app/books/:id`: Get a single book by ID.
--   `POST /api/books`: Add a new book (requires authentication).
+---
 
-## Scripts
+## 📖 Usage
 
--   `npm run dev`: Start the server in development mode with hot-reloading.
--   `npm start`: Start the server in production mode.
--   `node importEbooks.ts`: Import books from `data/catalogo-ebook.txt`.
--   `node enrichBooks.ts`: Enrich book data using the Google Books API.
+### Running Locally
+- **Development**: `npm run dev` (with hot-reloading via `tsx`)
+- **Productionize**: `npm start`
 
-## Deployment
+### Seeding Data
+1. Place a text file in `backend/data/catalogo-ebook.txt`.
+2. Run the import script: `npx tsx importEbooks.ts`
+3. Enrich the data: `npx tsx enrichBooks.ts`
 
-This project is configured for continuous deployment using GitHub Actions. A push to the `main` branch will automatically trigger a deployment to the production server.
+---
 
-The deployment workflow consists of the following steps:
+## 🔌 API Documentation
 
-1.  **Checkout code**: The workflow checks out the latest code from the `main` branch.
-2.  **Deploy to Server via SSH**: The workflow connects to the server via SSH and executes the following commands:
-    -   `cd ~/services/book-catalog`: Navigates to the project directory on the server.
-    -   `git pull origin main`: Pulls the latest changes from the `main` branch.
-    -   `docker compose up -d --build`: Rebuilds and restarts the Docker containers in detached mode.
+Once the server is running, access the interactive documentation at:
+👉 **[http://localhost:3000/api-docs](http://localhost:3000/api-docs)**
 
-### GitHub Secrets
+### Key Endpoints
+| Method | Endpoint | Description | Auth |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/login` | Exchange password for JWT | No |
+| `GET` | `/api/books` | List books (supports `search`, `author`) | Yes |
+| `GET` | `/app/books/:id`| Get book details | No |
+| `POST` | `/api/books` | Manual book entry | Yes |
 
-The deployment workflow requires the following secrets to be configured in the GitHub repository:
+---
 
--   `SERVER_IP`: The IP address of the production server.
--   `SERVER_USER`: The username for SSH access to the server.
--   `SSH_PRIVATE_KEY`: The private SSH key for authentication.
+## 🚢 Deployment
+
+This project includes a **GitHub Actions** workflow for automated deployment.
+- **Triggers**: On push to `main` branch.
+- **Process**: Code checkout → SSH to server → `git pull` → `docker compose up --build`.
+
+**Required GitHub Secrets:**
+- `SERVER_IP`, `SERVER_USER`, `SSH_PRIVATE_KEY`
+
+---
+
+## 🗺 Roadmap
+
+Current development focus:
+- [ ] **Semantic Search**: Implementing vector embeddings for better discovery.
+- [ ] **Vector Database Integration**: Migration to a vector-capable store.
+- [ ] **Frontend**: Developing a React/Next.js dashboard.
+
+
