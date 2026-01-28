@@ -224,6 +224,77 @@ app.post('/api/books', authenticateToken, async (req, res) => {
     }
 });
 
+// New public route to get all catalogue with pagination
+// GET /app/books?page=1&limit=10
+// GET /app/books?search=Harry
+
+/**
+ * @swagger
+ * /api/catalog:
+ *   get:
+ *     summary: Public catalog with pagination
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20 }
+ *       - in: query
+ *         name: search
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: List of books with pagination info
+ */
+app.get('/api/catalog', async (req, res) => {
+    try {
+        // Reading params with default values
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 20;
+        const search = req.query.search as string;
+
+        // calculate how many elements to skip
+        const skip = (page - 1) * limit;
+
+        // build search filter
+        // search word in title or author
+        const whereCondition = search ? {
+            OR: [
+                { title: { contains: search, mode: 'insensitive' as const } },
+                { author: { contains: search, mode: 'insensitive' as const } }
+            ]
+        } : {};
+
+        // execute query with pagination
+
+        const [books, total] = await Promise.all([
+            prisma.book.findMany({
+                where: whereCondition,
+                skip: skip,
+                take: limit,
+                orderBy: { title: 'asc' }
+            }),
+            prisma.book.count({ where: whereCondition })
+        ]);
+
+        // return data + pagination metadata
+        res.json({
+            data: books,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error retrieving books' });
+    }
+
+});
+
 /**
  * @swagger
  * /api/login:
