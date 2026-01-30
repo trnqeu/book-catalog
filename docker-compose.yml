@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:15-alpine
+    build: ./database
     container_name: book_db
     restart: always
     env_file:
