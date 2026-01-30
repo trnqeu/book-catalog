@@ -1,6 +1,9 @@
 FROM postgres:15-alpine
 
-RUN apk add --no-cache git make gcc musl-dev clang llvm
+# Modifica QUI: clang19 e llvm19
+RUN apk add --no-cache git make gcc musl-dev clang19 llvm19
+
+# RIMOSSO: RUN ln -s ... (non serve più)
 
 # Install pgvector
 RUN cd /tmp && \
