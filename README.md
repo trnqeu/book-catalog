@@ -117,7 +117,7 @@ This project includes a **GitHub Actions** workflow for automated deployment.
 ## 🗺 Roadmap
 
 Current development focus:
-- [ ] **Semantic Search**: Implementing vector embeddings for better discovery.
+- [ ] **Semantic Search**: Implementing vector embeddings for better discovery (multilingual).
 - [ ] **Vector Database Integration**: Migration to a vector-capable store.
 - [ ] **Frontend**: Developing a React/Next.js dashboard.
 
