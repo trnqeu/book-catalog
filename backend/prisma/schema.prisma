@@ -2,12 +2,11 @@ generator client {
   provider = "prisma-client"
   output   = "./generated"
   engineType = "client"
-  previewFeatures = ["postgressqlExtensions]
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider   = "postgresql"
-  url        = env("DATABASE_URL")
   extensions = [vector]
 }
 
@@ -22,5 +21,5 @@ model Book {
   description     String?
   coverUrl        String?
   createdAt       DateTime @default(now())
-  embedding       Unsupported("vector(384))?
+  embedding       Unsupported("vector(384)")?
 }

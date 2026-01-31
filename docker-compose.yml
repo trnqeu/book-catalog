@@ -19,7 +19,7 @@ services:
     container_name: book_api
     restart: always
     env_file:
-      - .env
+      - ./backend/.env
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
