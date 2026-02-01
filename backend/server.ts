@@ -220,7 +220,7 @@ app.post('/api/books', authenticateToken, async (req, res) => {
         console.log(`✅ Book saved: ${title}`)
         try {
             const textToEmbed = `${title} ${description}`;
-            const embedding = await EmbeddingService.getEmbedding(textToEmbed);
+            const embedding = await EmbeddingService.generateEmbedding(textToEmbed);
             const embeddingString = `[${embedding.join(',')}]`;
 
             // save vector to database
