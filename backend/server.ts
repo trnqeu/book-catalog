@@ -7,6 +7,7 @@ import pg from 'pg';
 import 'dotenv/config';
 import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
+import EmbeddingService from './services/embeddingService';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -217,6 +218,21 @@ app.post('/api/books', authenticateToken, async (req, res) => {
             }
         });
         console.log(`✅ Book saved: ${title}`)
+        try {
+            const textToEmbed = `${title} ${description}`;
+            const embedding = await EmbeddingService.getEmbedding(textToEmbed);
+            const embeddingString = `[${embedding.join(',')}]`;
+
+            // save vector to database
+            await prisma.$executeRaw`
+                UPDATE "Book"
+                SET "embedding" = ${embeddingString}::vector
+                WHERE "id" = ${newBook.id}
+            `;
+            console.log(`Embedding generated for: ${title}`);
+        } catch (embError) {
+            console.error(`Error generating embedding for: ${title}`, embError);
+        };
         res.status(201).json(newBook);
     } catch (error) {
         console.error(`Error saving:`, error);
