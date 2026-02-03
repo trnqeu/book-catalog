@@ -1,9 +1,14 @@
 import { PrismaClient } from '../prisma/generated/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import pg from 'pg';
 import EmbeddingService from '../services/embeddingService';
 import 'dotenv/config';
 
 // initialize prisma client
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+const pool = new pg.Pool({ connectionString });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
     console.log("Starting embeddings generation...")
