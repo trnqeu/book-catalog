@@ -2,7 +2,7 @@
 CREATE EXTENSION IF NOT EXISTS "vector";
 
 -- AlterTable
-ALTER TABLE "Book" ADD COLUMN     "coverUrl" TEXT,
-ADD COLUMN     "description" TEXT,
-ADD COLUMN     "embedding" vector(384),
-ADD COLUMN     "publishedDate" TEXT;
+ALTER TABLE "Book" ADD COLUMN IF NOT EXISTS "coverUrl" TEXT;
+ALTER TABLE "Book" ADD COLUMN IF NOT EXISTS "description" TEXT;
+ALTER TABLE "Book" ADD COLUMN IF NOT EXISTS "embedding" vector(384);
+ALTER TABLE "Book" ADD COLUMN IF NOT EXISTS "publishedDate" TEXT;
