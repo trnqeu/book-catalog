@@ -313,6 +313,65 @@ app.get('/api/catalog', async (req, res) => {
 
 /**
  * @swagger
+ * /api/search/similar:
+ *   get:
+ *     summary: Search books by semantic similarity
+ *     description: Converts the query into an embedding and finds the most similar books using vector distance.
+ *     parameters:
+ *       - in: query
+ *         name: query
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The search phrase (e.g., "books about space travel")
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 5
+ *     responses:
+ *       200:
+ *         description: List of similar books
+ *       400:
+ *         description: Missing query
+ */
+app.get('/api/search/similar', async (req, res) => {
+    try {
+        const { query, limit } = req.query;
+
+        console.log(`🔎 Semantic search for: "${query}"`);
+
+        if (!query) {
+            return res.status(400).json({ error: "Query parameter is required" });
+        }
+
+        const maxResults = parseInt(limit as string) || 5;
+
+        // 1. Generate embedding for the query
+        const embedding = await EmbeddingService.generateEmbedding(String(query));
+        const embeddingString = `[${embedding.join(',')}]`;
+
+        // 2. Perform vector search using cosine distance (<=>)
+        // We cast the embedding to vector simply using ::vector
+        const books = await prisma.$queryRaw`
+            SELECT id, title, author, description, coverUrl, 
+                   1 - (embedding <=> ${embeddingString}::vector) as similarity
+            FROM "Book"
+            WHERE embedding IS NOT NULL
+            ORDER BY embedding <=> ${embeddingString}::vector ASC
+            LIMIT ${maxResults};
+        `;
+
+        res.json(books);
+
+    } catch (error) {
+        console.error("Error in semantic search:", error);
+        res.status(500).json({ error: "Internal server error during search" });
+    }
+});
+
+/**
+ * @swagger
  * /api/login:
  *   post:
  *     summary: Login to get a JWT token
