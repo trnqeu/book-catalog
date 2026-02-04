@@ -354,11 +354,11 @@ app.get('/api/search/similar', async (req, res) => {
         // 2. Perform vector search using cosine distance (<=>)
         // We cast the embedding to vector simply using ::vector
         const books = await prisma.$queryRaw`
-            SELECT id, title, author, description, coverUrl, 
-                   1 - (embedding <=> ${embeddingString}::vector) as similarity
+            SELECT "id", "title", "author", "description", "coverUrl", 
+                   1 - ("embedding" <=> ${embeddingString}::vector) as similarity
             FROM "Book"
-            WHERE embedding IS NOT NULL
-            ORDER BY embedding <=> ${embeddingString}::vector ASC
+            WHERE "embedding" IS NOT NULL
+            ORDER BY "embedding" <=> ${embeddingString}::vector ASC
             LIMIT ${maxResults};
         `;
 
