@@ -7,6 +7,7 @@ import pg from 'pg';
 import 'dotenv/config';
 import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
+import axios from 'axios';
 import EmbeddingService from './services/embeddingService';
 
 const app = express();
@@ -219,19 +220,42 @@ app.post('/api/books', authenticateToken, async (req, res) => {
         });
         console.log(`✅ Book saved: ${title}`)
         try {
-            const textToEmbed = `${title} ${description}`;
+            const queryTitle = title.split('(')[0].trim();
+            const googleBooksRes = await axios.get(`https://www.googleapis.com/books/v1/volumes`, {
+                params: {
+                    q: `intitle:${queryTitle}+inauthor:${author}`,
+                    maxResults: 1
+                }
+            });
+
+            const item = googleBooksRes.data.items?.[0];
+            const data = item?.volumeInfo;
+            const volumeId = item?.id;
+
+            let updateData: any = {};
+
+            if (data && volumeId) {
+                updateData.coverUrl = `https://books.google.com/books/publisher/content/images/frontcover/${volumeId}?fife=w600-h900&source=gbs_api`;
+                if (!description && data.description) {
+                    updateData.description = data.description;
+                }
+            }
+
+            const textToEmbed = `${title} ${description || data?.description || ''}`;
             const embedding = await EmbeddingService.generateEmbedding(textToEmbed);
             const embeddingString = `[${embedding.join(',')}]`;
 
-            // save vector to database
+            // update book with cover, description (if missing) and vector
             await prisma.$executeRaw`
-                UPDATE "Book"
-                SET "embedding" = ${embeddingString}::vector
-                WHERE "id" = ${newBook.id}
-            `;
-            console.log(`Embedding generated for: ${title}`);
+                    UPDATE "Book"
+                    SET "embedding" = ${embeddingString}::vector,
+                        "coverUrl" = ${updateData.coverUrl || null},
+                        "description" = ${description || data?.description || null}
+                    WHERE "id" = ${newBook.id}
+                `;
+            console.log(`Embedding and high-res cover generated for: ${title}`);
         } catch (embError) {
-            console.error(`Error generating embedding for: ${title}`, embError);
+            console.error(`Error generating enrichment for: ${title}`, embError);
         };
         res.status(201).json(newBook);
     } catch (error) {
