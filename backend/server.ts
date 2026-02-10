@@ -264,6 +264,67 @@ app.post('/api/books', authenticateToken, async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /api/books/{id}:
+ *   patch:
+ *     summary: Update an existing book
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Numeric ID of the book to update
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               author:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               coverUrl:
+ *                 type: string
+ *               publishingHouse:
+ *                 type: string
+ *               language:
+ *                 type: string
+ *               format:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Updated book object
+ *       404:
+ *         description: Book not found
+ *       401:
+ *         description: Unauthorized
+ */
+app.patch('/api/books/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const updateData = req.body;
+    try {
+        const updatedBook = await prisma.book.update({
+            where: { id: Number(id) },
+            data: updateData
+        });
+        res.json(updatedBook);
+
+    } catch (error: any) {
+        if (error.code === 'P2025') {
+            return res.status(404).json({ error: 'Book not found' });
+        }
+        res.status(500).json({ error: 'Error during update' });
+    }
+});
+
 // New public route to get all catalogue with pagination
 // GET /app/books?page=1&limit=10
 // GET /app/books?search=Harry
