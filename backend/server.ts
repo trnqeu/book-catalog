@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from './prisma/generated/client'
 import { PrismaPg } from '@prisma/adapter-pg'
@@ -53,7 +54,12 @@ const prisma = new PrismaClient({ adapter });
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+// Serve static files from 'public' folder
+const publicPath = path.join(__dirname, 'public');
+app.use(express.static(publicPath));
+// Explicitly serve covers with CORS (useful for some browser configurations)
+app.use('/covers', cors(), express.static(path.join(publicPath, 'covers')));
+
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 // Authentication Middleware

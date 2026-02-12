@@ -13,6 +13,8 @@ COPY prisma ./prisma/
 RUN npx prisma generate
 
 COPY . .
+RUN mkdir -p public/covers
+
 
 EXPOSE 3000
 
