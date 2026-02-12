@@ -9,6 +9,7 @@ import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
 import axios from 'axios';
 import EmbeddingService from './services/embeddingService';
+import { downloadCover } from './lib/imageDownloader';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -52,6 +53,7 @@ const prisma = new PrismaClient({ adapter });
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static('public'));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 // Authentication Middleware
@@ -235,7 +237,10 @@ app.post('/api/books', authenticateToken, async (req, res) => {
             let updateData: any = {};
 
             if (data && volumeId) {
-                updateData.coverUrl = `https://books.google.com/books/publisher/content/images/frontcover/${volumeId}?fife=w600-h900&source=gbs_api`;
+                const remoteCoverUrl = `https://books.google.com/books/publisher/content/images/frontcover/${volumeId}?fife=w400-h600&source=gbs_api`;
+                // Cache cover locally
+                updateData.coverUrl = await downloadCover(remoteCoverUrl, newBook.id);
+
                 if (!description && data.description) {
                     updateData.description = data.description;
                 }
@@ -249,11 +254,11 @@ app.post('/api/books', authenticateToken, async (req, res) => {
             await prisma.$executeRaw`
                     UPDATE "Book"
                     SET "embedding" = ${embeddingString}::vector,
-                        "coverUrl" = ${updateData.coverUrl || null},
+                        "coverUrl" = ${updateData.coverUrl || coverUrl || null},
                         "description" = ${description || data?.description || null}
                     WHERE "id" = ${newBook.id}
                 `;
-            console.log(`Embedding and high-res cover generated for: ${title}`);
+            console.log(`Embedding and local cover generated for: ${title}`);
         } catch (embError) {
             console.error(`Error generating enrichment for: ${title}`, embError);
         };
@@ -309,12 +314,36 @@ app.post('/api/books', authenticateToken, async (req, res) => {
  */
 app.patch('/api/books/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const updateData = req.body;
+    let updateData = req.body;
     try {
+        // If coverUrl is provided and it's a remote URL, cache it locally
+        if (updateData.coverUrl && updateData.coverUrl.startsWith('http')) {
+            updateData.coverUrl = await downloadCover(updateData.coverUrl, Number(id));
+        }
+
         const updatedBook = await prisma.book.update({
             where: { id: Number(id) },
             data: updateData
         });
+
+        // Trigger embedding update if title or description changed
+        if (updateData.title !== undefined || updateData.description !== undefined) {
+            try {
+                const textToEmbed = `${updatedBook.title} ${updatedBook.description || ''}`;
+                const embedding = await EmbeddingService.generateEmbedding(textToEmbed);
+                const embeddingString = `[${embedding.join(',')}]`;
+
+                await prisma.$executeRaw`
+                    UPDATE "Book"
+                    SET "embedding" = ${embeddingString}::vector
+                    WHERE "id" = ${updatedBook.id}
+                `;
+                console.log(`✅ Embedding updated for: ${updatedBook.title}`);
+            } catch (embError) {
+                console.error(`❌ Error updating embedding for: ${updatedBook.title}`, embError);
+            }
+        }
+
         res.json(updatedBook);
 
     } catch (error: any) {
