@@ -55,7 +55,8 @@ const prisma = new PrismaClient({ adapter });
 app.use(cors());
 app.use(express.json());
 // Serve static files from 'public' folder
-const publicPath = path.join(__dirname, 'public');
+// Use process.cwd() to be more robust against __dirname issues in some environments
+const publicPath = path.join(process.cwd(), 'public');
 app.use(express.static(publicPath));
 // Explicitly serve covers with CORS (useful for some browser configurations)
 app.use('/covers', cors(), express.static(path.join(publicPath, 'covers')));
