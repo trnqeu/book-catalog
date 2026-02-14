@@ -17,19 +17,24 @@ export async function downloadCover(url: string, bookId: number): Promise<string
             timeout: 10000,
         });
 
-        const publicPath = path.join(__dirname, '..', 'public', 'covers');
+        const publicPath = path.join(process.cwd(), 'public', 'covers');
         if (!fs.existsSync(publicPath)) {
+            console.log(`📁 Creating directory: ${publicPath}`);
             fs.mkdirSync(publicPath, { recursive: true });
         }
 
         const fileName = `${bookId}.jpg`;
         const filePath = path.join(publicPath, fileName);
+        console.log(`💾 Writing image to: ${filePath}`);
         const writer = fs.createWriteStream(filePath);
 
         response.data.pipe(writer);
 
         return new Promise((resolve, reject) => {
-            writer.on('finish', () => resolve(`/covers/${fileName}`));
+            writer.on('finish', () => {
+                console.log(`✨ File ${fileName} successfully written to disk.`);
+                resolve(`/covers/${fileName}`);
+            });
             writer.on('error', (err) => {
                 console.error(`❌ Error writing image for book ${bookId}:`, err);
                 reject(url); // Fallback to original URL if download fails

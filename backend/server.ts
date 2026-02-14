@@ -325,7 +325,9 @@ app.patch('/api/books/:id', authenticateToken, async (req, res) => {
     try {
         // If coverUrl is provided and it's a remote URL, cache it locally
         if (updateData.coverUrl && updateData.coverUrl.startsWith('http')) {
+            console.log(`📥 Starting cover download for book ${id} from: ${updateData.coverUrl}`);
             updateData.coverUrl = await downloadCover(updateData.coverUrl, Number(id));
+            console.log(`✅ Download finished for book ${id}. New path: ${updateData.coverUrl}`);
         }
 
         const updatedBook = await prisma.book.update({
