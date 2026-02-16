@@ -119,6 +119,6 @@ This project includes a **GitHub Actions** workflow for automated deployment.
 Current development focus:
 - [ ] **Semantic Search**: Implementing vector embeddings for better discovery (multilingual).
 - [ ] **Vector Database Integration**: Migration to a vector-capable store.
-- [ ] **Frontend**: Developing a React/Next.js dashboard.
+- [ ] Create new **multilingual embeddings** with [EmbeddingGemma](https://ai.google.dev/gemma/docs/embeddinggemma)
 
 
