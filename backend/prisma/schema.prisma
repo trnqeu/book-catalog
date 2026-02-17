@@ -22,4 +22,5 @@ model Book {
   coverUrl        String?
   createdAt       DateTime @default(now())
   embedding       Unsupported("vector(384)")?
+  embeddingGemma  Unsupported("vector(768)")?
 }
