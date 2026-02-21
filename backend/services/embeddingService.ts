@@ -30,7 +30,7 @@ class EmbeddingService {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                model: "embedding-gemma",
+                model: "embeddinggemma",
                 prompt: text
             })
         });
