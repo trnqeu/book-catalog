@@ -175,6 +175,7 @@ app.get('/app/books/:id', async (req, res) => {
  * /api/books:
  *   post:
  *     summary: Create a new book
+ *     description: Creates a new book and automatically generates embeddings using both Xenova and Gemma models.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -254,18 +255,19 @@ app.post('/api/books', authenticateToken, async (req, res) => {
             }
 
             const textToEmbed = `${title} ${description || data?.description || ''}`;
-            const embedding = await EmbeddingService.generateEmbedding(textToEmbed);
-            const embeddingString = `[${embedding.join(',')}]`;
+            const embeddingXenova = await EmbeddingService.generateEmbedding(textToEmbed);
+            const embeddingGemma = await EmbeddingService.generateGemmaEmbedding(textToEmbed);
 
-            // update book with cover, description (if missing) and vector
+            // update book with cover, description (if missing) and both vectors
             await prisma.$executeRaw`
-                    UPDATE "Book"
-                    SET "embedding" = ${embeddingString}::vector,
-                        "coverUrl" = ${updateData.coverUrl || coverUrl || null},
-                        "description" = ${description || data?.description || null}
-                    WHERE "id" = ${newBook.id}
-                `;
-            console.log(`Embedding and local cover generated for: ${title}`);
+                UPDATE "Book"
+                SET "embedding" = ${`[${embeddingXenova.join(',')}]`}::vector,
+                    "embeddingGemma" = ${`[${embeddingGemma.join(',')}]`}::vector,
+                    "coverUrl" = ${updateData.coverUrl || coverUrl || null},
+                    "description" = ${description || data?.description || null}
+                WHERE "id" = ${newBook.id}
+            `;
+            console.log(`Embeddings (Xenova & Gemma) and local cover generated for: ${title}`);
         } catch (embError) {
             console.error(`Error generating enrichment for: ${title}`, embError);
         };
@@ -281,6 +283,7 @@ app.post('/api/books', authenticateToken, async (req, res) => {
  * /api/books/{id}:
  *   patch:
  *     summary: Update an existing book
+ *     description: Updates a book's details. If the title or description is changed, embeddings for both Xenova and Gemma models are automatically regenerated.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -339,15 +342,16 @@ app.patch('/api/books/:id', authenticateToken, async (req, res) => {
         if (updateData.title !== undefined || updateData.description !== undefined) {
             try {
                 const textToEmbed = `${updatedBook.title} ${updatedBook.description || ''}`;
-                const embedding = await EmbeddingService.generateEmbedding(textToEmbed);
-                const embeddingString = `[${embedding.join(',')}]`;
+                const embeddingXenova = await EmbeddingService.generateEmbedding(textToEmbed);
+                const embeddingGemma = await EmbeddingService.generateGemmaEmbedding(textToEmbed);
 
                 await prisma.$executeRaw`
                     UPDATE "Book"
-                    SET "embedding" = ${embeddingString}::vector
+                    SET "embedding" = ${`[${embeddingXenova.join(',')}]`}::vector,
+                        "embeddingGemma" = ${`[${embeddingGemma.join(',')}]`}::vector
                     WHERE "id" = ${updatedBook.id}
                 `;
-                console.log(`✅ Embedding updated for: ${updatedBook.title}`);
+                console.log(`✅ Embeddings updated for: ${updatedBook.title}`);
             } catch (embError) {
                 console.error(`❌ Error updating embedding for: ${updatedBook.title}`, embError);
             }
@@ -452,6 +456,13 @@ app.get('/api/catalog', async (req, res) => {
  *         schema:
  *           type: integer
  *           default: 5
+ *       - in: query
+ *         name: model
+ *         schema:
+ *           type: string
+ *           enum: [xenova, gemma]
+ *           default: xenova
+ *         description: The embedding model to use for the search.
  *     responses:
  *       200:
  *         description: List of similar books
@@ -470,20 +481,30 @@ app.get('/api/search/similar', async (req, res) => {
 
         const maxResults = parseInt(limit as string) || 5;
 
-        // 1. Generate embedding for the query
-        const embedding = await EmbeddingService.generateEmbedding(String(query));
-        const embeddingString = `[${embedding.join(',')}]`;
+        // Choose model to use for embeddings
+        const selectedModel = req.query.model === 'gemma' ? 'gemma' : 'xenova';
+        const vectorColumn = selectedModel === 'gemma' ? 'embeddingGemma' : 'embedding';
 
-        // 2. Perform vector search using cosine distance (<=>)
-        // We cast the embedding to vector simply using ::vector
-        const books = await prisma.$queryRaw`
+        let embedding: number[];
+        if (selectedModel === 'gemma') {
+            embedding = await EmbeddingService.generateGemmaEmbedding(String(query));
+        } else {
+            embedding = await EmbeddingService.generateEmbedding(String(query));
+        }
+
+        // const embeddingString = `[${embedding.join(',')}]`;
+
+        // Perform vector search using cosine distance (<=>)
+        // We use $queryRawUnsafe because Prisma doesn't allow dynamic column names in $queryRaw
+        const embeddingString = `[${embedding.join(',')}]`;
+        const books = await prisma.$queryRawUnsafe(`
             SELECT "id", "title", "author", "description", "coverUrl", 
-                   1 - ("embedding" <=> ${embeddingString}::vector) as similarity
+                   1 - ("${vectorColumn}" <=> $1::vector) as similarity
             FROM "Book"
-            WHERE "embedding" IS NOT NULL
-            ORDER BY "embedding" <=> ${embeddingString}::vector ASC
-            LIMIT ${maxResults};
-        `;
+            WHERE "${vectorColumn}" IS NOT NULL
+            ORDER BY "${vectorColumn}" <=> $1::vector ASC
+            LIMIT $2;
+        `, embeddingString, maxResults);
 
         res.json(books);
 
