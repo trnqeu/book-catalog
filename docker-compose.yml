@@ -27,6 +27,15 @@ services:
     volumes:
       - covers_data:/app/public/covers
 
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    restart: always
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+
   adminer:
     image: adminer
     container_name: book_adminer
@@ -39,3 +48,4 @@ services:
 volumes:
   db_data:
   covers_data:
+  ollama_data:
