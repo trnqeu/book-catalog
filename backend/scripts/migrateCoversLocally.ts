@@ -3,7 +3,7 @@ import "dotenv/config";
 import { PrismaClient } from '../prisma/generated/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
-import { downloadCover } from '../lib/imageDownloader';
+import { downloadCover } from '../src/lib/imageDownloader';
 
 // Support both local and docker database URLs
 const connectionString = process.env.DATABASE_URL?.replace('book_db', 'localhost');

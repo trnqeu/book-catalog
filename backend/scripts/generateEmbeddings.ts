@@ -1,7 +1,7 @@
 import { PrismaClient } from '../prisma/generated/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
-import EmbeddingService from '../services/embeddingService';
+import EmbeddingService from '../src/services/embeddingService';
 import 'dotenv/config';
 
 // initialize prisma client

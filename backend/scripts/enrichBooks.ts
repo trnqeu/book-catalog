@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { PrismaClient } from './prisma/generated/client';
+import { PrismaClient } from '../prisma/generated/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 import axios from 'axios';
@@ -25,8 +25,8 @@ async function enrich() {
     for (const book of books) {
         try {
             if (!book || !book.title || !book.author) continue;
-            const queryTitle = (book.title as string).split('(')[0].trim();
-            const queryAuthor = book.author as string;
+            const queryTitle = book.title!.split('(')[0].trim();
+            const queryAuthor = book.author!;
 
             console.log(`Searching: ${queryTitle} - ${queryAuthor}`);
 

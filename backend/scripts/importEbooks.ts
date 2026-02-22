@@ -1,6 +1,6 @@
 import 'dotenv/config';
 // import { PrismaClient } from './generated/prisma/client.js';
-import { PrismaClient } from './prisma/generated/client';
+import { PrismaClient } from '../prisma/generated/client';
 import { PrismaPg } from '@prisma/adapter-pg'
 import pg from 'pg';
 import fs from 'fs';
@@ -48,7 +48,7 @@ async function main() {
             }
             if (nextLine !== "") {
                 author = nextLine;
-                i = k; 
+                i = k;
                 break;
             }
             k++;
@@ -57,8 +57,8 @@ async function main() {
         if (title && author) {
             // Risoluzione TS2375: garantiamo che language sia string
             const langMatch = title.match(/\(([^)]*?)\s*Edition\)/i);
-            const language: string = langMatch ? langMatch[1] : 'Italian'; 
-            
+            const language: string = langMatch ? langMatch[1] : 'Italian';
+
             const cleanTitle = title.replace(/\([^)]*?\s*Edition\)/i, '').trim();
 
             try {

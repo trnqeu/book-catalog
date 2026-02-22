@@ -18,4 +18,4 @@ RUN mkdir -p public/covers
 
 EXPOSE 3000
 
-CMD ["npx", "tsx", "server.ts"]
+CMD ["npx", "tsx", "src/server.ts"]

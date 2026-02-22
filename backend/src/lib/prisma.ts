@@ -1,7 +1,7 @@
 import "dotenv/config";
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '../generated/prisma/client/index.js'; // Nota l'aggiunta di /index.js per ESM
+import { PrismaClient } from '../../prisma/generated/client';
 
 const connectionString = `${process.env.DATABASE_URL}`;
 

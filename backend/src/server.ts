@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from './prisma/generated/client'
+import { PrismaClient } from '../prisma/generated/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import pg from 'pg';
 import 'dotenv/config';
@@ -41,7 +41,7 @@ const swaggerOptions = {
             bearerAuth: [],
         }],
     },
-    apis: ["./server.ts"], // files containing annotations as above
+    apis: ["./src/server.ts"], // files containing annotations as above
 };
 
 const swaggerDocs = swaggerJsdoc(swaggerOptions);
