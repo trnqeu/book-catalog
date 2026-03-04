@@ -119,26 +119,43 @@ app.get('/api/books', authenticateToken, async (req, res) => {
     try {
         const { search, author } = req.query;
 
-        if (!search) {
-            const books = await prisma.book.findMany({
-                where: {
-                    author: author ? { contains: String(author), mode: 'insensitive' } : {}
-                },
+        let books;
+
+        if (search) {
+            // Global search using FTS
+            const authorQuery = author ? String(author) : '';
+            books = await prisma.$queryRaw`
+                SELECT *, 
+                       ts_rank(to_tsvector('simple', "title" || ' ' || "author"), websearch_to_tsquery('simple', ${search})) as rank
+                FROM "Book"
+                WHERE to_tsvector('simple', "title" || ' ' || "author") @@ websearch_to_tsquery('simple', ${search})
+                  AND (
+                    ${authorQuery} = '' 
+                    OR to_tsvector('simple', "author") @@ websearch_to_tsquery('simple', ${authorQuery})
+                    OR "author" % ${authorQuery}
+                  )
+                ORDER BY rank DESC
+                LIMIT 50;
+            `;
+        } else if (author) {
+            // Specific author search using FTS (order) + Trigrams (fuzzy/typos)
+            const authorQuery = String(author);
+            books = await prisma.$queryRaw`
+                SELECT *, 
+                       similarity("author", ${authorQuery}) as author_sim
+                FROM "Book"
+                WHERE to_tsvector('simple', "author") @@ websearch_to_tsquery('simple', ${authorQuery})
+                   OR "author" % ${authorQuery}
+                ORDER BY author_sim DESC
+                LIMIT 50;
+            `;
+        } else {
+            // Fallback: list all
+            books = await prisma.book.findMany({
                 orderBy: { title: 'asc' },
                 take: 50
             });
-            return res.json(books);
         }
-
-        // Use Full-Text Search combined with optional author filter
-        const authorFilter = author ? `%${author}%` : '%%';
-        const books = await prisma.$queryRaw`
-            SELECT * FROM "Book"
-            WHERE to_tsvector('simple', "title" || ' ' || "author") @@ websearch_to_tsquery('simple', ${search})
-              AND "author" ILIKE ${authorFilter}
-            ORDER BY ts_rank(to_tsvector('simple', "title" || ' ' || "author"), websearch_to_tsquery('simple', ${search})) DESC
-            LIMIT 50;
-        `;
 
         res.json(books);
     } catch (error) {
