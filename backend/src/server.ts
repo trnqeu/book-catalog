@@ -119,16 +119,26 @@ app.get('/api/books', authenticateToken, async (req, res) => {
     try {
         const { search, author } = req.query;
 
-        const books = await prisma.book.findMany({
-            where: {
-                AND: [
-                    search ? { title: { contains: String(search), mode: 'insensitive' } } : {},
-                    author ? { author: { contains: String(author), mode: 'insensitive' } } : {}
-                ]
-            },
-            orderBy: { title: 'asc' },
-            take: 50
-        });
+        if (!search) {
+            const books = await prisma.book.findMany({
+                where: {
+                    author: author ? { contains: String(author), mode: 'insensitive' } : {}
+                },
+                orderBy: { title: 'asc' },
+                take: 50
+            });
+            return res.json(books);
+        }
+
+        // Use Full-Text Search combined with optional author filter
+        const authorFilter = author ? `%${author}%` : '%%';
+        const books = await prisma.$queryRaw`
+            SELECT * FROM "Book"
+            WHERE to_tsvector('simple', "title" || ' ' || "author") @@ websearch_to_tsquery('simple', ${search})
+              AND "author" ILIKE ${authorFilter}
+            ORDER BY ts_rank(to_tsvector('simple', "title" || ' ' || "author"), websearch_to_tsquery('simple', ${search})) DESC
+            LIMIT 50;
+        `;
 
         res.json(books);
     } catch (error) {
@@ -410,16 +420,33 @@ app.get('/api/catalog', async (req, res) => {
         } : {};
 
         // execute query with pagination
+        let books;
+        let total;
 
-        const [books, total] = await Promise.all([
-            prisma.book.findMany({
-                where: whereCondition,
-                skip: skip,
-                take: limit,
-                orderBy: { title: 'asc' }
-            }),
-            prisma.book.count({ where: whereCondition })
-        ]);
+        if (search) {
+            [books, total] = await Promise.all([
+                prisma.$queryRaw`
+                    SELECT * FROM "Book"
+                    WHERE to_tsvector('simple', "title" || ' ' || "author") @@ websearch_to_tsquery('simple', ${search})
+                    ORDER BY ts_rank(to_tsvector('simple', "title" || ' ' || "author"), websearch_to_tsquery('simple', ${search})) DESC
+                    LIMIT ${limit} OFFSET ${skip};
+                `,
+                prisma.$queryRaw<{ count: bigint }[]>`
+                    SELECT COUNT(*) as count FROM "Book"
+                    WHERE to_tsvector('simple', "title" || ' ' || "author") @@ websearch_to_tsquery('simple', ${search})
+                `.then(res => Number(res[0]?.count || 0))
+            ]);
+        } else {
+            [books, total] = await Promise.all([
+                prisma.book.findMany({
+                    where: whereCondition,
+                    skip: skip,
+                    take: limit,
+                    orderBy: { title: 'asc' }
+                }),
+                prisma.book.count({ where: whereCondition })
+            ]);
+        }
 
         // return data + pagination metadata
         res.json({
