@@ -77,6 +77,19 @@ const authenticateToken = (req: any, res: any, next: any) => {
     });
 };
 
+type SimilarBooksModel = 'xenova' | 'gemma';
+
+const vectorColumns: Record<SimilarBooksModel, 'embedding' | 'embeddingGemma'> = {
+    xenova: 'embedding',
+    gemma: 'embeddingGemma',
+};
+
+const parseLimit = (value: unknown, fallback = 6, max = 20) => {
+    const parsed = parseInt(String(value || ''), 10);
+    if (Number.isNaN(parsed)) return fallback;
+    return Math.min(Math.max(parsed, 1), max);
+};
+
 
 /**
  * @swagger
@@ -194,6 +207,119 @@ app.get('/app/books/:id', async (req, res) => {
         else res.status(404).json({ error: 'Libro non trovato' });
     } catch (error) {
         res.status(500).json({ error: 'Error getting book from database' });
+    }
+});
+
+/**
+ * @swagger
+ * /app/books/{id}/similar:
+ *   get:
+ *     summary: Get books similar to a specific book
+ *     description: Finds nearest neighbours using pgvector cosine distance against the selected book embedding.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Numeric ID of the source book
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 6
+ *         description: Maximum number of similar books to return
+ *       - in: query
+ *         name: model
+ *         schema:
+ *           type: string
+ *           enum: [auto, xenova, gemma]
+ *           default: auto
+ *         description: Embedding model to use. Auto prefers Gemma when available, otherwise Xenova.
+ *     responses:
+ *       200:
+ *         description: Ordered list of similar books
+ *       400:
+ *         description: Invalid book ID or model
+ *       404:
+ *         description: Book not found
+ *       422:
+ *         description: Book has no embedding for similarity search
+ */
+app.get('/app/books/:id/similar', async (req, res) => {
+    const bookId = Number(req.params.id);
+
+    if (!Number.isInteger(bookId) || bookId <= 0) {
+        return res.status(400).json({ error: 'Invalid book ID' });
+    }
+
+    const requestedModel = String(req.query.model || 'auto').toLowerCase();
+    if (!['auto', 'xenova', 'gemma'].includes(requestedModel)) {
+        return res.status(400).json({ error: 'Model must be one of: auto, xenova, gemma' });
+    }
+
+    try {
+        const [sourceBook] = await prisma.$queryRaw<{
+            id: number;
+            hasXenova: boolean;
+            hasGemma: boolean;
+        }[]>`
+            SELECT "id",
+                   "embedding" IS NOT NULL AS "hasXenova",
+                   "embeddingGemma" IS NOT NULL AS "hasGemma"
+            FROM "Book"
+            WHERE "id" = ${bookId}
+            LIMIT 1;
+        `;
+
+        if (!sourceBook) {
+            return res.status(404).json({ error: 'Libro non trovato' });
+        }
+
+        const selectedModel: SimilarBooksModel =
+            requestedModel === 'gemma' || (requestedModel === 'auto' && sourceBook.hasGemma)
+                ? 'gemma'
+                : 'xenova';
+
+        if ((selectedModel === 'gemma' && !sourceBook.hasGemma) || (selectedModel === 'xenova' && !sourceBook.hasXenova)) {
+            return res.status(422).json({ error: `No ${selectedModel} embedding available for this book` });
+        }
+
+        const vectorColumn = vectorColumns[selectedModel];
+        const maxResults = parseLimit(req.query.limit);
+        const [sourceEmbedding] = await prisma.$queryRawUnsafe<{ embedding: string }[]>(`
+            SELECT "${vectorColumn}"::text AS "embedding"
+            FROM "Book"
+            WHERE "id" = $1
+            LIMIT 1;
+        `, bookId);
+
+        if (!sourceEmbedding?.embedding) {
+            return res.status(422).json({ error: `No ${selectedModel} embedding available for this book` });
+        }
+
+        const similarBooks = await prisma.$queryRawUnsafe(`
+            SELECT b."id",
+                   b."title",
+                   b."author",
+                   b."description",
+                   b."coverUrl",
+                   b."language",
+                   b."publishingHouse",
+                   b."format",
+                   b."publishedDate",
+                   1 - (b."${vectorColumn}" <=> $1::vector) AS "similarity"
+            FROM "Book" b
+            WHERE b."id" <> $2
+              AND b."${vectorColumn}" IS NOT NULL
+            ORDER BY b."${vectorColumn}" <=> $1::vector ASC
+            LIMIT $3;
+        `, sourceEmbedding.embedding, bookId, maxResults);
+
+        res.json(similarBooks);
+    } catch (error) {
+        console.error('Error getting similar books:', error);
+        res.status(500).json({ error: 'Error getting similar books' });
     }
 });
 
@@ -610,4 +736,3 @@ app.post('/api/login', (req, res) => {
 app.listen(port, () => {
     console.log(`Server listing on http://localhost:${port}`);
 });
-

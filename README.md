@@ -99,6 +99,7 @@ Once the server is running, access the interactive documentation at:
 | `POST` | `/api/login` | Exchange password for JWT | No |
 | `GET` | `/api/books` | List books (supports `search`, `author`) | Yes |
 | `GET` | `/app/books/:id`| Get book details | No |
+| `GET` | `/app/books/:id/similar`| Get similar books ordered by vector similarity | No |
 | `POST` | `/api/books` | Manual book entry | Yes |
 
 ---
@@ -120,5 +121,3 @@ Current development focus:
 - [ ] **Semantic Search**: Implementing vector embeddings for better discovery (multilingual).
 - [ ] **Vector Database Integration**: Migration to a vector-capable store.
 - [ ] Create new **multilingual embeddings** with [EmbeddingGemma](https://ai.google.dev/gemma/docs/embeddinggemma)
-
-
