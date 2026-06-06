@@ -382,6 +382,10 @@ app.post('/api/books', authenticateToken, async (req, res) => {
             }
         });
         console.log(`✅ Book saved: ${title}`)
+        let finalCoverUrl = coverUrl;
+        let finalDescription = description;
+
+        // 1. Google Books Enrichment
         try {
             const queryTitle = title.split('(')[0].trim();
             const googleBooksRes = await axios.get(`https://www.googleapis.com/books/v1/volumes`, {
@@ -395,35 +399,57 @@ app.post('/api/books', authenticateToken, async (req, res) => {
             const data = item?.volumeInfo;
             const volumeId = item?.id;
 
-            let updateData: any = {};
-
             if (data && volumeId) {
                 const remoteCoverUrl = `https://books.google.com/books/publisher/content/images/frontcover/${volumeId}?fife=w400-h600&source=gbs_api`;
                 // Cache cover locally
-                updateData.coverUrl = await downloadCover(remoteCoverUrl, newBook.id);
+                try {
+                    finalCoverUrl = await downloadCover(remoteCoverUrl, newBook.id);
+                } catch (dlError) {
+                    console.error(`Error downloading cover for: ${title}`, dlError);
+                }
 
                 if (!description && data.description) {
-                    updateData.description = data.description;
+                    finalDescription = data.description;
                 }
             }
+        } catch (gbError) {
+            console.error(`Error fetching Google Books metadata for: ${title}`, gbError);
+        }
 
-            const textToEmbed = `${title} ${description || data?.description || ''}`;
+        // 2. Generate Embeddings & Update DB
+        try {
+            const textToEmbed = `${title} ${finalDescription || ''}`;
             const embeddingXenova = await EmbeddingService.generateEmbedding(textToEmbed);
             const embeddingGemma = await EmbeddingService.generateGemmaEmbedding(textToEmbed);
 
-            // update book with cover, description (if missing) and both vectors
+            // Update database with metadata (cover, description) and both embedding vectors
             await prisma.$executeRaw`
                 UPDATE "Book"
                 SET "embedding" = ${`[${embeddingXenova.join(',')}]`}::vector,
                     "embeddingGemma" = ${`[${embeddingGemma.join(',')}]`}::vector,
-                    "coverUrl" = ${updateData.coverUrl || coverUrl || null},
-                    "description" = ${description || data?.description || null}
+                    "coverUrl" = ${finalCoverUrl || null},
+                    "description" = ${finalDescription || null}
                 WHERE "id" = ${newBook.id}
             `;
             console.log(`Embeddings (Xenova & Gemma) and local cover generated for: ${title}`);
         } catch (embError) {
-            console.error(`Error generating enrichment for: ${title}`, embError);
-        };
+            console.error(`Error generating embeddings for: ${title}`, embError);
+
+            // If embedding fails but metadata was successfully fetched, still save the metadata
+            if (finalCoverUrl !== coverUrl || finalDescription !== description) {
+                try {
+                    await prisma.book.update({
+                        where: { id: newBook.id },
+                        data: {
+                            coverUrl: finalCoverUrl,
+                            description: finalDescription
+                        }
+                    });
+                } catch (dbError) {
+                    console.error(`Error updating book metadata after embedding failure for: ${title}`, dbError);
+                }
+            }
+        }
         res.status(201).json(newBook);
     } catch (error) {
         console.error(`Error saving:`, error);
