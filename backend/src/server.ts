@@ -1,5 +1,8 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import crypto from 'crypto';
 import path from 'path';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '../prisma/generated/client'
@@ -52,14 +55,44 @@ const pool = new pg.Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-app.use(cors());
+app.use(helmet());
+
+// CORS: restrict to known frontend origins via CORS_ORIGIN (comma-separated).
+// Falls back to allow-all only when unset, with a loud warning, so local/dev
+// setups keep working until this is configured explicitly.
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
+
+if (allowedOrigins.length === 0) {
+    console.warn('⚠️  CORS_ORIGIN is not set — accepting requests from any origin. Set CORS_ORIGIN to your frontend URL(s) before deploying publicly.');
+}
+
+const corsOptions: cors.CorsOptions = {
+    origin: allowedOrigins.length === 0 ? true : allowedOrigins,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 // Serve static files from 'public' folder
 // Use process.cwd() to be more robust against __dirname issues in some environments
 const publicPath = path.join(process.cwd(), 'public');
 app.use(express.static(publicPath));
 // Explicitly serve covers with CORS (useful for some browser configurations)
-app.use('/covers', cors(), express.static(path.join(publicPath, 'covers')));
+app.use('/covers', cors(corsOptions), express.static(path.join(publicPath, 'covers')));
+
+// General throttle for the API: the search/similarity endpoints are
+// unauthenticated and call out to Ollama (and, at creation time, Google
+// Books), so an unlimited client can burn compute/API quota for free.
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+app.use('/api', apiLimiter);
+app.use('/app', apiLimiter);
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
@@ -501,15 +534,37 @@ app.post('/api/books', authenticateToken, async (req, res) => {
  *       401:
  *         description: Unauthorized
  */
+// Fields a client is allowed to update. Anything else in the body (id,
+// createdAt, embedding, embeddingGemma, ...) is silently dropped instead of
+// being passed straight through to Prisma.
+const UPDATABLE_BOOK_FIELDS = [
+    'title', 'author', 'description', 'coverUrl',
+    'publishingHouse', 'language', 'format', 'publishedDate',
+] as const;
+
+type UpdatableBookFields = Partial<Record<typeof UPDATABLE_BOOK_FIELDS[number], string>>;
+
+function pickUpdatableFields(body: Record<string, unknown>): UpdatableBookFields {
+    const result: UpdatableBookFields = {};
+    for (const field of UPDATABLE_BOOK_FIELDS) {
+        if (body[field] !== undefined) result[field] = String(body[field]);
+    }
+    return result;
+}
+
 app.patch('/api/books/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    let updateData = req.body;
+    let updateData = pickUpdatableFields(req.body || {});
     try {
         // If coverUrl is provided and it's a remote URL, cache it locally
         if (updateData.coverUrl && updateData.coverUrl.startsWith('http')) {
             console.log(`📥 Starting cover download for book ${id} from: ${updateData.coverUrl}`);
-            updateData.coverUrl = await downloadCover(updateData.coverUrl, Number(id));
-            console.log(`✅ Download finished for book ${id}. New path: ${updateData.coverUrl}`);
+            try {
+                updateData.coverUrl = await downloadCover(updateData.coverUrl, Number(id));
+                console.log(`✅ Download finished for book ${id}. New path: ${updateData.coverUrl}`);
+            } catch (dlError: any) {
+                return res.status(400).json({ error: `Could not fetch cover image: ${dlError.message || 'download failed'}` });
+            }
         }
 
         const updatedBook = await prisma.book.update({
@@ -740,10 +795,31 @@ app.get('/api/search/similar', async (req, res) => {
  *         description: Wrong password
  */
 console.log("Configuring route /api/login...");
-app.post('/api/login', (req, res) => {
-    const { password } = req.body;
 
-    if (password === process.env.ADMIN_PASSWORD) {
+// Throttle login attempts: 10 tries per IP every 15 minutes, on top of the
+// constant-time comparison below, to make brute-forcing ADMIN_PASSWORD
+// impractical.
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many login attempts, please try again later' },
+});
+
+// Constant-time comparison so response timing doesn't leak how many
+// characters of the password were correct.
+function safeCompare(a: string, b: string): boolean {
+    const bufA = crypto.createHash('sha256').update(a).digest();
+    const bufB = crypto.createHash('sha256').update(b).digest();
+    return crypto.timingSafeEqual(bufA, bufB);
+}
+
+app.post('/api/login', loginLimiter, (req, res) => {
+    const { password } = req.body;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+
+    if (adminPassword && typeof password === 'string' && safeCompare(password, adminPassword)) {
         // Generate token is password is ok
         const token = jwt.sign(
             {

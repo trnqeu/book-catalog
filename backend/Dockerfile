@@ -13,8 +13,10 @@ COPY prisma ./prisma/
 RUN npx prisma generate
 
 COPY . .
-RUN mkdir -p public/covers
+RUN mkdir -p public/covers && chown -R node:node /app
 
+# Run as the non-root "node" user baked into the base image instead of root.
+USER node
 
 EXPOSE 3000
 

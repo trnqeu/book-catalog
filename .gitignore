@@ -1,3 +1,4 @@
 .env
 backend/.env
-notes.mdbackups/
+notes.md
+backups/
