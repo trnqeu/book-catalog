@@ -110,13 +110,6 @@ const authenticateToken = (req: any, res: any, next: any) => {
     });
 };
 
-type SimilarBooksModel = 'xenova' | 'gemma';
-
-const vectorColumns: Record<SimilarBooksModel, 'embedding' | 'embeddingGemma'> = {
-    xenova: 'embedding',
-    gemma: 'embeddingGemma',
-};
-
 const parseLimit = (value: unknown, fallback = 6, max = 20) => {
     const parsed = parseInt(String(value || ''), 10);
     if (Number.isNaN(parsed)) return fallback;
@@ -248,7 +241,7 @@ app.get('/app/books/:id', async (req, res) => {
  * /app/books/{id}/similar:
  *   get:
  *     summary: Get books similar to a specific book
- *     description: Finds nearest neighbours using pgvector cosine distance against the selected book embedding.
+ *     description: Finds nearest neighbours using pgvector cosine distance against the book's Gemma embedding.
  *     parameters:
  *       - in: path
  *         name: id
@@ -262,18 +255,11 @@ app.get('/app/books/:id', async (req, res) => {
  *           type: integer
  *           default: 6
  *         description: Maximum number of similar books to return
- *       - in: query
- *         name: model
- *         schema:
- *           type: string
- *           enum: [auto, xenova, gemma]
- *           default: auto
- *         description: Embedding model to use. Auto prefers Gemma when available, otherwise Xenova.
  *     responses:
  *       200:
  *         description: Ordered list of similar books
  *       400:
- *         description: Invalid book ID or model
+ *         description: Invalid book ID
  *       404:
  *         description: Book not found
  *       422:
@@ -286,20 +272,13 @@ app.get('/app/books/:id/similar', async (req, res) => {
         return res.status(400).json({ error: 'Invalid book ID' });
     }
 
-    const requestedModel = String(req.query.model || 'auto').toLowerCase();
-    if (!['auto', 'xenova', 'gemma'].includes(requestedModel)) {
-        return res.status(400).json({ error: 'Model must be one of: auto, xenova, gemma' });
-    }
-
     try {
         const [sourceBook] = await prisma.$queryRaw<{
             id: number;
-            hasXenova: boolean;
-            hasGemma: boolean;
+            hasEmbedding: boolean;
         }[]>`
             SELECT "id",
-                   "embedding" IS NOT NULL AS "hasXenova",
-                   "embeddingGemma" IS NOT NULL AS "hasGemma"
+                   "embeddingGemma" IS NOT NULL AS "hasEmbedding"
             FROM "Book"
             WHERE "id" = ${bookId}
             LIMIT 1;
@@ -309,29 +288,12 @@ app.get('/app/books/:id/similar', async (req, res) => {
             return res.status(404).json({ error: 'Libro non trovato' });
         }
 
-        const selectedModel: SimilarBooksModel =
-            requestedModel === 'gemma' || (requestedModel === 'auto' && sourceBook.hasGemma)
-                ? 'gemma'
-                : 'xenova';
-
-        if ((selectedModel === 'gemma' && !sourceBook.hasGemma) || (selectedModel === 'xenova' && !sourceBook.hasXenova)) {
-            return res.status(422).json({ error: `No ${selectedModel} embedding available for this book` });
+        if (!sourceBook.hasEmbedding) {
+            return res.status(422).json({ error: 'No embedding available for this book' });
         }
 
-        const vectorColumn = vectorColumns[selectedModel];
         const maxResults = parseLimit(req.query.limit);
-        const [sourceEmbedding] = await prisma.$queryRawUnsafe<{ embedding: string }[]>(`
-            SELECT "${vectorColumn}"::text AS "embedding"
-            FROM "Book"
-            WHERE "id" = $1
-            LIMIT 1;
-        `, bookId);
-
-        if (!sourceEmbedding?.embedding) {
-            return res.status(422).json({ error: `No ${selectedModel} embedding available for this book` });
-        }
-
-        const similarBooks = await prisma.$queryRawUnsafe(`
+        const similarBooks = await prisma.$queryRaw`
             SELECT b."id",
                    b."title",
                    b."author",
@@ -341,13 +303,13 @@ app.get('/app/books/:id/similar', async (req, res) => {
                    b."publishingHouse",
                    b."format",
                    b."publishedDate",
-                   1 - (b."${vectorColumn}" <=> $1::vector) AS "similarity"
-            FROM "Book" b
-            WHERE b."id" <> $2
-              AND b."${vectorColumn}" IS NOT NULL
-            ORDER BY b."${vectorColumn}" <=> $1::vector ASC
-            LIMIT $3;
-        `, sourceEmbedding.embedding, bookId, maxResults);
+                   1 - (b."embeddingGemma" <=> src."embeddingGemma") AS "similarity"
+            FROM "Book" b, (SELECT "embeddingGemma" FROM "Book" WHERE "id" = ${bookId}) AS src
+            WHERE b."id" <> ${bookId}
+              AND b."embeddingGemma" IS NOT NULL
+            ORDER BY b."embeddingGemma" <=> src."embeddingGemma" ASC
+            LIMIT ${maxResults};
+        `;
 
         res.json(similarBooks);
     } catch (error) {
@@ -361,7 +323,7 @@ app.get('/app/books/:id/similar', async (req, res) => {
  * /api/books:
  *   post:
  *     summary: Create a new book
- *     description: Creates a new book and automatically generates embeddings using both Xenova and Gemma models.
+ *     description: Creates a new book and automatically generates a Gemma embedding for it.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -449,22 +411,20 @@ app.post('/api/books', authenticateToken, async (req, res) => {
             console.error(`Error fetching Google Books metadata for: ${title}`, gbError);
         }
 
-        // 2. Generate Embeddings & Update DB
+        // 2. Generate Embedding & Update DB
         try {
             const textToEmbed = `${title} ${finalDescription || ''}`;
-            const embeddingXenova = await EmbeddingService.generateEmbedding(textToEmbed);
             const embeddingGemma = await EmbeddingService.generateGemmaEmbedding(textToEmbed);
 
-            // Update database with metadata (cover, description) and both embedding vectors
+            // Update database with metadata (cover, description) and the embedding vector
             await prisma.$executeRaw`
                 UPDATE "Book"
-                SET "embedding" = ${`[${embeddingXenova.join(',')}]`}::vector,
-                    "embeddingGemma" = ${`[${embeddingGemma.join(',')}]`}::vector,
+                SET "embeddingGemma" = ${`[${embeddingGemma.join(',')}]`}::vector,
                     "coverUrl" = ${finalCoverUrl || null},
                     "description" = ${finalDescription || null}
                 WHERE "id" = ${newBook.id}
             `;
-            console.log(`Embeddings (Xenova & Gemma) and local cover generated for: ${title}`);
+            console.log(`Embedding (Gemma) and local cover generated for: ${title}`);
         } catch (embError) {
             console.error(`Error generating embeddings for: ${title}`, embError);
 
@@ -495,7 +455,7 @@ app.post('/api/books', authenticateToken, async (req, res) => {
  * /api/books/{id}:
  *   patch:
  *     summary: Update an existing book
- *     description: Updates a book's details. If the title or description is changed, embeddings for both Xenova and Gemma models are automatically regenerated.
+ *     description: Updates a book's details. If the title or description is changed, its Gemma embedding is automatically regenerated.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -576,13 +536,11 @@ app.patch('/api/books/:id', authenticateToken, async (req, res) => {
         if (updateData.title !== undefined || updateData.description !== undefined) {
             try {
                 const textToEmbed = `${updatedBook.title} ${updatedBook.description || ''}`;
-                const embeddingXenova = await EmbeddingService.generateEmbedding(textToEmbed);
                 const embeddingGemma = await EmbeddingService.generateGemmaEmbedding(textToEmbed);
 
                 await prisma.$executeRaw`
                     UPDATE "Book"
-                    SET "embedding" = ${`[${embeddingXenova.join(',')}]`}::vector,
-                        "embeddingGemma" = ${`[${embeddingGemma.join(',')}]`}::vector
+                    SET "embeddingGemma" = ${`[${embeddingGemma.join(',')}]`}::vector
                     WHERE "id" = ${updatedBook.id}
                 `;
                 console.log(`✅ Embeddings updated for: ${updatedBook.title}`);
@@ -694,7 +652,7 @@ app.get('/api/catalog', async (req, res) => {
  * /api/search/similar:
  *   get:
  *     summary: Search books by semantic similarity
- *     description: Converts the query into an embedding and finds the most similar books using vector distance.
+ *     description: Converts the query into a Gemma embedding and finds the most similar books using vector distance.
  *     parameters:
  *       - in: query
  *         name: query
@@ -707,13 +665,6 @@ app.get('/api/catalog', async (req, res) => {
  *         schema:
  *           type: integer
  *           default: 5
- *       - in: query
- *         name: model
- *         schema:
- *           type: string
- *           enum: [xenova, gemma]
- *           default: xenova
- *         description: The embedding model to use for the search.
  *     responses:
  *       200:
  *         description: List of similar books
@@ -731,31 +682,18 @@ app.get('/api/search/similar', async (req, res) => {
         }
 
         const maxResults = parseInt(limit as string) || 5;
-
-        // Choose model to use for embeddings
-        const selectedModel = req.query.model === 'gemma' ? 'gemma' : 'xenova';
-        const vectorColumn = selectedModel === 'gemma' ? 'embeddingGemma' : 'embedding';
-
-        let embedding: number[];
-        if (selectedModel === 'gemma') {
-            embedding = await EmbeddingService.generateGemmaEmbedding(String(query));
-        } else {
-            embedding = await EmbeddingService.generateEmbedding(String(query));
-        }
-
-        // const embeddingString = `[${embedding.join(',')}]`;
+        const embedding = await EmbeddingService.generateGemmaEmbedding(String(query));
+        const embeddingString = `[${embedding.join(',')}]`;
 
         // Perform vector search using cosine distance (<=>)
-        // We use $queryRawUnsafe because Prisma doesn't allow dynamic column names in $queryRaw
-        const embeddingString = `[${embedding.join(',')}]`;
-        const books = await prisma.$queryRawUnsafe(`
-            SELECT "id", "title", "author", "description", "coverUrl", 
-                   1 - ("${vectorColumn}" <=> $1::vector) as similarity
+        const books = await prisma.$queryRaw`
+            SELECT "id", "title", "author", "description", "coverUrl",
+                   1 - ("embeddingGemma" <=> ${embeddingString}::vector) as similarity
             FROM "Book"
-            WHERE "${vectorColumn}" IS NOT NULL
-            ORDER BY "${vectorColumn}" <=> $1::vector ASC
-            LIMIT $2;
-        `, embeddingString, maxResults);
+            WHERE "embeddingGemma" IS NOT NULL
+            ORDER BY "embeddingGemma" <=> ${embeddingString}::vector ASC
+            LIMIT ${maxResults};
+        `;
 
         res.json(books);
 

@@ -21,6 +21,10 @@ model Book {
   description     String?
   coverUrl        String?
   createdAt       DateTime @default(now())
+  // Legacy Xenova (MiniLM) embedding. The app no longer writes to this
+  // column since the Xenova dependency was dropped in favor of Gemma
+  // (via Ollama) — kept only so existing data isn't lost. Safe to drop
+  // in a future migration once that's confirmed unneeded.
   embedding       Unsupported("vector(384)")?
   embeddingGemma  Unsupported("vector(768)")?
 }
