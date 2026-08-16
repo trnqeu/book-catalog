@@ -58,6 +58,10 @@ DATABASE_URL="postgresql://user:password@localhost:5432/book_catalog"
 JWT_SECRET="your_very_secret_key"
 ADMIN_PASSWORD="your_admin_access_password"
 PORT=3000
+# Comma-separated list of origins allowed to call the API (e.g. your
+# frontend's URL). Left unset, the server allows any origin and logs a
+# warning on startup — fine for local dev, not for a public deployment.
+CORS_ORIGIN="https://your-frontend.example.com"
 ```
 
 ### 3. Installation & Database Setup
