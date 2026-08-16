@@ -78,8 +78,12 @@ app.use(express.json());
 // Serve static files from 'public' folder
 // Use process.cwd() to be more robust against __dirname issues in some environments
 const publicPath = path.join(process.cwd(), 'public');
-app.use(express.static(publicPath));
-// Explicitly serve covers with CORS (useful for some browser configurations).
+// Cover images need a relaxed Cross-Origin-Resource-Policy (see below), so
+// this MUST be mounted before the generic express.static(publicPath) below:
+// that generic handler also matches /covers/*.jpg (it's a subfolder of
+// public/) and would serve the file itself, short-circuiting this
+// middleware and its CORP override.
+//
 // helmet()'s default Cross-Origin-Resource-Policy: same-origin blocks the
 // frontend (a different origin) from loading these images even with CORS
 // headers present, since CORP is enforced independently of CORS for plain
@@ -91,6 +95,7 @@ app.use(
     helmet.crossOriginResourcePolicy({ policy: 'cross-origin' }),
     express.static(path.join(publicPath, 'covers'))
 );
+app.use(express.static(publicPath));
 
 // General throttle for the API: the search/similarity endpoints are
 // unauthenticated and call out to Ollama (and, at creation time, Google
