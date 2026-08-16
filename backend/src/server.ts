@@ -79,8 +79,18 @@ app.use(express.json());
 // Use process.cwd() to be more robust against __dirname issues in some environments
 const publicPath = path.join(process.cwd(), 'public');
 app.use(express.static(publicPath));
-// Explicitly serve covers with CORS (useful for some browser configurations)
-app.use('/covers', cors(corsOptions), express.static(path.join(publicPath, 'covers')));
+// Explicitly serve covers with CORS (useful for some browser configurations).
+// helmet()'s default Cross-Origin-Resource-Policy: same-origin blocks the
+// frontend (a different origin) from loading these images even with CORS
+// headers present, since CORP is enforced independently of CORS for plain
+// <img> loads. Relax it just for this route; access is already restricted
+// by corsOptions/CORS_ORIGIN above.
+app.use(
+    '/covers',
+    cors(corsOptions),
+    helmet.crossOriginResourcePolicy({ policy: 'cross-origin' }),
+    express.static(path.join(publicPath, 'covers'))
+);
 
 // General throttle for the API: the search/similarity endpoints are
 // unauthenticated and call out to Ollama (and, at creation time, Google
