@@ -1,9 +1,9 @@
 FROM postgres:15-alpine
 
-# Modifica QUI: clang19 e llvm19
-RUN apk add --no-cache git make gcc musl-dev clang19 llvm19
-
-# RIMOSSO: RUN ln -s ... (non serve più)
+# clang/llvm version must match the toolchain postgres:15-alpine was built
+# with (see /usr/local/lib/postgresql/pgxs/src/Makefile.global -> CLANG),
+# otherwise pgvector's bitcode build fails with "clang-XX: No such file".
+RUN apk add --no-cache git make gcc musl-dev clang21 llvm21
 
 # Install pgvector
 RUN cd /tmp && \
