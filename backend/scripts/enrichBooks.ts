@@ -25,8 +25,8 @@ async function enrich() {
     for (const book of books) {
         try {
             if (!book || !book.title || !book.author) continue;
-            const queryTitle = book.title!.split('(')[0].trim();
-            const queryAuthor = book.author!;
+            const queryTitle = (book.title.split('(')[0] ?? book.title).trim();
+            const queryAuthor = book.author;
 
             console.log(`Searching: ${queryTitle} - ${queryAuthor}`);
 

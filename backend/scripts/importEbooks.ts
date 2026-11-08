@@ -17,7 +17,7 @@ async function main() {
     console.log(`🚀 Analisi iniziata su ${lines.length} righe.`);
 
     for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
+        const line = lines[i] ?? '';
 
         // 1. SALTO ESTRATTI (Blocco di 3: ESTRATTO + Titolo + Autore)
         if (line.toUpperCase().includes("ESTRATTO")) {
@@ -41,7 +41,7 @@ async function main() {
 
         let k = i + 1;
         while (k < lines.length) {
-            const nextLine = lines[k].trim();
+            const nextLine = (lines[k] ?? '').trim();
             if (nextLine === "Prime Reading") {
                 k++;
                 continue;
@@ -57,7 +57,7 @@ async function main() {
         if (title && author) {
             // Risoluzione TS2375: garantiamo che language sia string
             const langMatch = title.match(/\(([^)]*?)\s*Edition\)/i);
-            const language: string = langMatch ? langMatch[1] : 'Italian';
+            const language: string = langMatch?.[1] ?? 'Italian';
 
             const cleanTitle = title.replace(/\([^)]*?\s*Edition\)/i, '').trim();
 
