@@ -89,6 +89,21 @@ npx prisma migrate dev
 1. Place a text file in `backend/data/catalogo-ebook.txt`.
 2. Run the import script: `npx tsx importEbooks.ts`
 3. Enrich the data: `npx tsx enrichBooks.ts`
+4. Add first-edition years: `npm run enrich:first-edition` (see below)
+
+### First edition year
+`publishedDate` is the date of the specific edition in the catalog (usually the e-book). `firstPublishedYear` is the year the **work** was first published, looked up from [Open Library](https://openlibrary.org/developers/api) and [Wikidata](https://www.wikidata.org/) (no API keys needed); the oldest plausible year wins. Wikidata is what catches translated classics (e.g. *Sonata a Kreutzer* → 1889), which Open Library often files as separate works.
+
+`firstPublishedSource` records the origin: `openlibrary`, `wikidata`, `googlebooks` (edition date was older than any match), `manual` (set via `PATCH /api/books/:id`), or `not_found`. `NULL` means not looked up yet.
+
+```bash
+cd backend
+npm run enrich:first-edition -- --dry-run --limit 20   # preview, writes nothing
+npm run enrich:first-edition                           # all pending books (resumable)
+npm run enrich:first-edition -- --retry-not-found      # retry previous misses
+```
+
+New books created via `POST /api/books` get the year automatically. To fix a wrong value: `PATCH /api/books/:id` with `{"firstPublishedYear": 1819}` (or `null` to clear it and let the script retry).
 
 ---
 

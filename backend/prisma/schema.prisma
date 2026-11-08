@@ -18,6 +18,12 @@ model Book {
   publishingHouse String?
   format          String
   publishedDate   String?
+  // Year the work was first published (any language/edition), as opposed to
+  // publishedDate, which is the date of the specific edition in the catalog.
+  firstPublishedYear   Int?
+  // Where firstPublishedYear came from: "openlibrary" | "wikidata" |
+  // "googlebooks" | "manual" | "not_found". NULL = not looked up yet.
+  firstPublishedSource String?
   description     String?
   coverUrl        String?
   createdAt       DateTime @default(now())

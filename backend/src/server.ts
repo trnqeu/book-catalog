@@ -14,6 +14,7 @@ import swaggerJsdoc from 'swagger-jsdoc';
 import axios from 'axios';
 import EmbeddingService from './services/embeddingService';
 import { downloadCover } from './lib/imageDownloader';
+import { findFirstEditionYear } from './lib/firstEdition';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -318,6 +319,7 @@ app.get('/app/books/:id/similar', async (req, res) => {
                    b."publishingHouse",
                    b."format",
                    b."publishedDate",
+                   b."firstPublishedYear",
                    1 - (b."embeddingGemma" <=> src."embeddingGemma") AS "similarity"
             FROM "Book" b, (SELECT "embeddingGemma" FROM "Book" WHERE "id" = ${bookId}) AS src
             WHERE b."id" <> ${bookId}
@@ -458,6 +460,23 @@ app.post('/api/books', authenticateToken, async (req, res) => {
                 }
             }
         }
+
+        // 3. First edition year (Open Library + Wikidata). Best effort: a
+        // failure leaves firstPublishedSource NULL so the enrichment script
+        // retries it later.
+        try {
+            const firstEdition = author ? await findFirstEditionYear({ title, author, language }) : null;
+            await prisma.book.update({
+                where: { id: newBook.id },
+                data: {
+                    firstPublishedYear: firstEdition?.year ?? null,
+                    firstPublishedSource: firstEdition?.source ?? 'not_found',
+                },
+            });
+            if (firstEdition) console.log(`📅 First edition of ${title}: ${firstEdition.year} (${firstEdition.source})`);
+        } catch (feError) {
+            console.error(`Error looking up first edition for: ${title}`, feError);
+        }
         res.status(201).json(newBook);
     } catch (error) {
         console.error(`Error saving:`, error);
@@ -501,6 +520,12 @@ app.post('/api/books', authenticateToken, async (req, res) => {
  *                 type: string
  *               format:
  *                 type: string
+ *               publishedDate:
+ *                 type: string
+ *               firstPublishedYear:
+ *                 type: integer
+ *                 nullable: true
+ *                 description: Year the work was first published. Setting it marks the value as manually curated.
  *     responses:
  *       200:
  *         description: Updated book object
@@ -517,19 +542,45 @@ const UPDATABLE_BOOK_FIELDS = [
     'publishingHouse', 'language', 'format', 'publishedDate',
 ] as const;
 
-type UpdatableBookFields = Partial<Record<typeof UPDATABLE_BOOK_FIELDS[number], string>>;
+type UpdatableBookFields = Partial<Record<typeof UPDATABLE_BOOK_FIELDS[number], string>> & {
+    firstPublishedYear?: number | null;
+    firstPublishedSource?: string | null;
+};
 
 function pickUpdatableFields(body: Record<string, unknown>): UpdatableBookFields {
     const result: UpdatableBookFields = {};
     for (const field of UPDATABLE_BOOK_FIELDS) {
         if (body[field] !== undefined) result[field] = String(body[field]);
     }
+    // Numeric field: null clears it (and its source, so the enrichment
+    // script picks the book up again); otherwise it must be an integer year.
+    if (body.firstPublishedYear !== undefined) {
+        if (body.firstPublishedYear === null || body.firstPublishedYear === '') {
+            result.firstPublishedYear = null;
+            result.firstPublishedSource = null;
+        } else {
+            const year = Number(body.firstPublishedYear);
+            if (!Number.isInteger(year) || year > new Date().getFullYear()) {
+                throw new InvalidFieldError('firstPublishedYear must be an integer year not in the future');
+            }
+            result.firstPublishedYear = year;
+            result.firstPublishedSource = 'manual';
+        }
+    }
     return result;
 }
 
+class InvalidFieldError extends Error {}
+
 app.patch('/api/books/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    let updateData = pickUpdatableFields(req.body || {});
+    let updateData: UpdatableBookFields;
+    try {
+        updateData = pickUpdatableFields(req.body || {});
+    } catch (err) {
+        if (err instanceof InvalidFieldError) return res.status(400).json({ error: err.message });
+        throw err;
+    }
     try {
         // If coverUrl is provided and it's a remote URL, cache it locally
         if (updateData.coverUrl && updateData.coverUrl.startsWith('http')) {
