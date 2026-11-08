@@ -44,16 +44,29 @@ export function titleVariants(title: string): string[] {
     return [...new Set([full, main])].filter(Boolean);
 }
 
-/** "Tolstoj, Lev Nikolaevic" -> { full: "Lev Nikolaevic Tolstoj", surname: "Tolstoj" }. */
+// Role words and titles that end up in author fields ("A cura di N.K.
+// Sandars", "Ivo author Pinto", "Dr Logan Song").
+const AUTHOR_NOISE = /\b(a cura di|edited by|translated by|introduction by|author|editor|curatore|ed\.|dr\.?|prof\.?)(?=\s|$)/gi;
+
+/**
+ * Handles both catalog formats:
+ *   "Tolstoj, Lev Nikolaevic"              -> "Lev Nikolaevic Tolstoj" / "Tolstoj"
+ *   "Boris Strugackij, Arkadij Strugackij" -> "Boris Strugackij" / "Strugackij"
+ * A comma means "Surname, Given" only when the part before it is a single
+ * word; otherwise it separates co-authors and the first one is used.
+ */
 export function normalizeAuthor(author: string): { full: string; surname: string } {
-    // Multiple authors are sometimes joined with ";" or "&": use the first one.
-    const first = (author.split(/;|&| and | e /)[0] ?? author).trim();
-    if (first.includes(',')) {
-        const [surname = '', given = ''] = first.split(',').map(s => s.trim());
+    const cleaned = author.replace(AUTHOR_NOISE, ' ').replace(/\s+/g, ' ').trim();
+    let first = (cleaned.split(/;|&| and | e /)[0] ?? cleaned).trim();
+
+    const commaParts = first.split(',').map(s => s.trim()).filter(Boolean);
+    if (commaParts.length >= 2 && commaParts[0]!.split(/\s+/).length === 1) {
+        const [surname = '', given = ''] = commaParts;
         return { full: `${given} ${surname}`.trim(), surname };
     }
-    const parts = first.split(/\s+/);
-    return { full: first, surname: parts[parts.length - 1] ?? first };
+    first = commaParts[0] ?? first;
+    const words = first.split(/\s+/);
+    return { full: first, surname: words[words.length - 1] ?? first };
 }
 
 /** Lowercase, strip accents and punctuation, for fuzzy comparisons. */
@@ -68,15 +81,17 @@ function fold(s: string): string {
 }
 
 /**
- * Surname transliterations differ ("Tolstoj" / "Tolstoy" / "Tolstój"), so
- * compare on a folded prefix of the surname rather than an exact match.
+ * Surname transliterations differ ("Tolstoj" / "Tolstoy", "Strugackij" /
+ * "Strugatsky"), so compare on the first 5 letters of the surname's last
+ * word ("O'Hagan" folds to "o hagan" -> "hagan"). The candidates already
+ * matched the title, so this loose check is enough to reject other authors.
  */
 function authorMatches(candidate: string, surname: string): boolean {
-    const c = fold(candidate);
-    const s = fold(surname);
-    if (!s) return false;
-    const stem = s.length > 5 ? s.slice(0, s.length - 1) : s;
-    return c.split(' ').some(word => word.startsWith(stem));
+    const words = fold(surname).split(' ');
+    const last = words[words.length - 1] ?? '';
+    if (!last) return false;
+    const stem = last.slice(0, 5);
+    return fold(candidate).split(' ').some(word => word.startsWith(stem));
 }
 
 function titleMatches(candidate: string, query: string): boolean {
@@ -168,6 +183,8 @@ export async function lookupWikidata(title: string, author: string, language = '
             ?item wikibase:apiOutputItem mwapi:item.
           }
           ?item wdt:P50 ?author .
+          # Only the work's own publication date: inception (P571) is the
+          # writing date, and the oldest edition (P747) is often a later one.
           ?item wdt:P577 ?date .
           ?author rdfs:label ?authorLabel .
         }
