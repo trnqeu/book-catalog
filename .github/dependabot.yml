@@ -1,0 +1,43 @@
+version: 2
+updates:
+  # Backend npm dependencies: one grouped PR per week for minor/patch bumps,
+  # so routine updates don't arrive as a dozen separate PRs. Major versions
+  # still come as individual PRs, since they may need code changes.
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Prisma CLI and @prisma/client must move together; the grouped PR
+      # covers minor/patch, but a major (e.g. 8.x) needs a deliberate upgrade.
+      - dependency-name: "prisma"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/*"
+        update-types: ["version-update:semver-major"]
+
+  # Base images in backend/ and database/ Dockerfiles.
+  - package-ecosystem: "docker"
+    directories:
+      - "/backend"
+      - "/database"
+    schedule:
+      interval: "monthly"
+    ignore:
+      # Never auto-propose major bumps: postgres 15 -> 16+ can't read the
+      # existing data volume without a dump/restore, and changes the clang
+      # toolchain pgvector is built with; node majors need a test pass.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # Actions used by the deploy workflow.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"

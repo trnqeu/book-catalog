@@ -16,19 +16,29 @@ import type * as Prisma from "./prismaNamespace.js"
 
 
 const config: runtime.GetPrismaClientConfig = {
-  "previewFeatures": [],
-  "clientVersion": "7.2.0",
-  "engineVersion": "0c8ef2ce45c83248ab3df073180d5eda9e8be7a3",
+  "previewFeatures": [
+    "postgresqlExtensions"
+  ],
+  "clientVersion": "7.10.1",
+  "engineVersion": "d1b3f377ca835d73fd50954a5e22128b9ebdd6b8",
   "activeProvider": "postgresql",
-  "inlineSchema": "generator client {\n  provider   = \"prisma-client\"\n  output     = \"./generated\"\n  engineType = \"client\"\n}\n\ndatasource db {\n  provider = \"postgresql\"\n}\n\nmodel Book {\n  id              Int      @id @default(autoincrement())\n  title           String\n  author          String\n  language        String?\n  publishingHouse String?\n  format          String\n  publishedDate   String?\n  description     String?\n  coverUrl        String?\n  createdAt       DateTime @default(now())\n}\n",
+  "inlineSchema": "generator client {\n  provider        = \"prisma-client\"\n  output          = \"./generated\"\n  engineType      = \"client\"\n  previewFeatures = [\"postgresqlExtensions\"]\n}\n\ndatasource db {\n  provider   = \"postgresql\"\n  extensions = [vector]\n}\n\nmodel Book {\n  id                   Int                         @id @default(autoincrement())\n  title                String\n  author               String\n  language             String?\n  publishingHouse      String?\n  format               String\n  publishedDate        String?\n  // Year the work was first published (any language/edition), as opposed to\n  // publishedDate, which is the date of the specific edition in the catalog.\n  firstPublishedYear   Int?\n  // Where firstPublishedYear came from: \"openlibrary\" | \"wikidata\" |\n  // \"googlebooks\" | \"manual\" | \"not_found\". NULL = not looked up yet.\n  firstPublishedSource String?\n  description          String?\n  coverUrl             String?\n  createdAt            DateTime                    @default(now())\n  // Legacy Xenova (MiniLM) embedding. The app no longer writes to this\n  // column since the Xenova dependency was dropped in favor of Gemma\n  // (via Ollama) — kept only so existing data isn't lost. Safe to drop\n  // in a future migration once that's confirmed unneeded.\n  embedding            Unsupported(\"vector(384)\")?\n  embeddingGemma       Unsupported(\"vector(768)\")?\n}\n",
   "runtimeDataModel": {
     "models": {},
     "enums": {},
     "types": {}
+  },
+  "parameterizationSchema": {
+    "strings": [],
+    "graph": ""
   }
 }
 
-config.runtimeDataModel = JSON.parse("{\"models\":{\"Book\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"title\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"author\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"language\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"publishingHouse\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"format\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"publishedDate\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"description\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"coverUrl\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"}],\"dbName\":null}},\"enums\":{},\"types\":{}}")
+config.runtimeDataModel = JSON.parse("{\"models\":{\"Book\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"title\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"author\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"language\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"publishingHouse\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"format\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"publishedDate\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"firstPublishedYear\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"firstPublishedSource\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"description\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"coverUrl\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"}],\"dbName\":null,\"schema\":null}},\"enums\":{},\"types\":{}}")
+config.parameterizationSchema = {
+  strings: JSON.parse("[\"where\",\"Book.findUnique\",\"Book.findUniqueOrThrow\",\"orderBy\",\"cursor\",\"Book.findFirst\",\"Book.findFirstOrThrow\",\"Book.findMany\",\"data\",\"Book.createOne\",\"Book.createMany\",\"Book.createManyAndReturn\",\"Book.updateOne\",\"Book.updateMany\",\"Book.updateManyAndReturn\",\"create\",\"update\",\"Book.upsertOne\",\"Book.deleteOne\",\"Book.deleteMany\",\"having\",\"_count\",\"_avg\",\"_sum\",\"_min\",\"_max\",\"Book.groupBy\",\"Book.aggregate\",\"AND\",\"OR\",\"NOT\",\"id\",\"title\",\"author\",\"language\",\"publishingHouse\",\"format\",\"publishedDate\",\"firstPublishedYear\",\"firstPublishedSource\",\"description\",\"coverUrl\",\"createdAt\",\"equals\",\"in\",\"notIn\",\"lt\",\"lte\",\"gt\",\"gte\",\"not\",\"contains\",\"startsWith\",\"endsWith\",\"set\",\"increment\",\"decrement\",\"multiply\",\"divide\"]"),
+  graph: "PAsQDxwAACwAMB0AAAQAEB4AACwAMB8CAAAAASABAC4AISEBAC4AISIBAC8AISMBAC8AISQBAC4AISUBAC8AISYCADAAIScBAC8AISgBAC8AISkBAC8AISpAADEAIQEAAAABACABAAAAAQAgDxwAACwAMB0AAAQAEB4AACwAMB8CAC0AISABAC4AISEBAC4AISIBAC8AISMBAC8AISQBAC4AISUBAC8AISYCADAAIScBAC8AISgBAC8AISkBAC8AISpAADEAIQciAAAyACAjAAAyACAlAAAyACAmAAAyACAnAAAyACAoAAAyACApAAAyACADAAAABAAgAwAABQAwBAAAAQAgAwAAAAQAIAMAAAUAMAQAAAEAIAMAAAAEACADAAAFADAEAAABACAMHwIAAAABIAEAAAABIQEAAAABIgEAAAABIwEAAAABJAEAAAABJQEAAAABJgIAAAABJwEAAAABKAEAAAABKQEAAAABKkAAAAABAQgAAAkAIAwfAgAAAAEgAQAAAAEhAQAAAAEiAQAAAAEjAQAAAAEkAQAAAAElAQAAAAEmAgAAAAEnAQAAAAEoAQAAAAEpAQAAAAEqQAAAAAEBCAAACwAwAQgAAAsAMAwfAgA8ACEgAQA4ACEhAQA4ACEiAQA5ACEjAQA5ACEkAQA4ACElAQA5ACEmAgA6ACEnAQA5ACEoAQA5ACEpAQA5ACEqQAA7ACECAAAAAQAgCAAADgAgDB8CADwAISABADgAISEBADgAISIBADkAISMBADkAISQBADgAISUBADkAISYCADoAIScBADkAISgBADkAISkBADkAISpAADsAIQIAAAAEACAIAAAQACACAAAABAAgCAAAEAAgAwAAAAEAIA8AAAkAIBAAAA4AIAEAAAABACABAAAABAAgDBUAADMAIBYAADQAIBcAADcAIBgAADYAIBkAADUAICIAADIAICMAADIAICUAADIAICYAADIAICcAADIAICgAADIAICkAADIAIA8cAAAaADAdAAAXABAeAAAaADAfAgAbACEgAQAcACEhAQAcACEiAQAdACEjAQAdACEkAQAcACElAQAdACEmAgAeACEnAQAdACEoAQAdACEpAQAdACEqQAAfACEDAAAABAAgAwAAFgAwFAAAFwAgAwAAAAQAIAMAAAUAMAQAAAEAIA8cAAAaADAdAAAXABAe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"
+}
 
 async function decodeBase64AsWasm(wasmBase64: string): Promise<WebAssembly.Module> {
   const { Buffer } = await import('node:buffer')
@@ -37,12 +47,14 @@ async function decodeBase64AsWasm(wasmBase64: string): Promise<WebAssembly.Modul
 }
 
 config.compilerWasm = {
-  getRuntime: async () => await import("@prisma/client/runtime/query_compiler_bg.postgresql.mjs"),
+  getRuntime: async () => await import("@prisma/client/runtime/query_compiler_fast_bg.postgresql.mjs"),
 
   getQueryCompilerWasmModule: async () => {
-    const { wasm } = await import("@prisma/client/runtime/query_compiler_bg.postgresql.wasm-base64.mjs")
+    const { wasm } = await import("@prisma/client/runtime/query_compiler_fast_bg.postgresql.wasm-base64.mjs")
     return await decodeBase64AsWasm(wasm)
-  }
+  },
+
+  importName: "./query_compiler_fast_bg.js"
 }
 
 
@@ -57,7 +69,9 @@ export interface PrismaClientConstructor {
    * Type-safe database client for TypeScript
    * @example
    * ```
-   * const prisma = new PrismaClient()
+   * const prisma = new PrismaClient({
+   *   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL })
+   * })
    * // Fetch zero or more Books
    * const books = await prisma.book.findMany()
    * ```
@@ -70,7 +84,7 @@ export interface PrismaClientConstructor {
     LogOpts extends LogOptions<Options> = LogOptions<Options>,
     OmitOpts extends Prisma.PrismaClientOptions['omit'] = Options extends { omit: infer U } ? U : Prisma.PrismaClientOptions['omit'],
     ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs
-  >(options: Prisma.Subset<Options, Prisma.PrismaClientOptions> ): PrismaClient<LogOpts, OmitOpts, ExtArgs>
+  >(options: Prisma.PrismaClientConstructorArgs<Options>): PrismaClient<LogOpts, OmitOpts, ExtArgs>
 }
 
 /**
@@ -79,7 +93,9 @@ export interface PrismaClientConstructor {
  * Type-safe database client for TypeScript
  * @example
  * ```
- * const prisma = new PrismaClient()
+ * const prisma = new PrismaClient({
+ *   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL })
+ * })
  * // Fetch zero or more Books
  * const books = await prisma.book.findMany()
  * ```
@@ -89,7 +105,7 @@ export interface PrismaClientConstructor {
 
 export interface PrismaClient<
   in LogOpts extends Prisma.LogLevel = never,
-  in out OmitOpts extends Prisma.PrismaClientOptions['omit'] = undefined,
+  in out OmitOpts extends Prisma.PrismaClientOptions['omit'] = Prisma.PrismaClientOptions['omit'],
   in out ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs
 > {
   [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['other'] }
@@ -164,9 +180,9 @@ export interface PrismaClient<
    * ])
    * ```
    * 
-   * Read more in our [docs](https://www.prisma.io/docs/concepts/components/prisma-client/transactions).
+   * Read more in our [docs](https://www.prisma.io/docs/orm/prisma-client/queries/transactions).
    */
-  $transaction<P extends Prisma.PrismaPromise<any>[]>(arg: [...P], options?: { isolationLevel?: Prisma.TransactionIsolationLevel }): runtime.Types.Utils.JsPromise<runtime.Types.Utils.UnwrapTuple<P>>
+  $transaction<P extends Prisma.PrismaPromise<any>[]>(arg: [...P], options?: { maxWait?: number, timeout?: number, isolationLevel?: Prisma.TransactionIsolationLevel }): runtime.Types.Utils.JsPromise<runtime.Types.Utils.UnwrapTuple<P>>
 
   $transaction<R>(fn: (prisma: Omit<PrismaClient, runtime.ITXClientDenyList>) => runtime.Types.Utils.JsPromise<R>, options?: { maxWait?: number, timeout?: number, isolationLevel?: Prisma.TransactionIsolationLevel }): runtime.Types.Utils.JsPromise<R>
 
