@@ -21,6 +21,10 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "@prisma/*"
         update-types: ["version-update:semver-major"]
+      # Node typings must match the runtime (node:22-slim in backend/Dockerfile),
+      # not the latest Node release; bump together with the base image.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   # Base images in backend/ and database/ Dockerfiles.
   - package-ecosystem: "docker"
