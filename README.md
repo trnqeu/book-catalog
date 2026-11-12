@@ -120,6 +120,8 @@ Once the server is running, access the interactive documentation at:
 | `GET` | `/app/books/:id`| Get book details | No |
 | `GET` | `/app/books/:id/similar`| Get similar books ordered by vector similarity | No |
 | `POST` | `/api/books` | Manual book entry | Yes |
+| `PATCH` | `/api/books/:id` | Update a book (incl. `firstPublishedYear`) | Yes |
+| `GET` | `/api/catalog` | Public paginated catalog | No |
 
 ---
 

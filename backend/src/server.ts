@@ -33,6 +33,41 @@ const swaggerOptions = {
             description: 'API for managing a book catalog',
         },
         components: {
+            schemas: {
+                Book: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'integer' },
+                        title: { type: 'string' },
+                        author: { type: 'string' },
+                        language: { type: 'string', nullable: true },
+                        publishingHouse: { type: 'string', nullable: true },
+                        format: { type: 'string', example: 'Ebook' },
+                        publishedDate: {
+                            type: 'string', nullable: true, example: '2011-01-10',
+                            description: 'Publication date of the specific edition in the catalog (usually the e-book), from Google Books.',
+                        },
+                        firstPublishedYear: {
+                            type: 'integer', nullable: true, example: 1819,
+                            description: 'Year the work was first published, in any language or edition. Null when unknown.',
+                        },
+                        firstPublishedSource: {
+                            type: 'string', nullable: true,
+                            enum: ['openlibrary', 'wikidata', 'googlebooks', 'manual', 'not_found', null],
+                            description: 'Origin of firstPublishedYear. "googlebooks": the catalog edition was older than any match. "not_found": looked up, nothing found. Null: not looked up yet.',
+                        },
+                        description: { type: 'string', nullable: true },
+                        coverUrl: { type: 'string', nullable: true },
+                        createdAt: { type: 'string', format: 'date-time' },
+                    },
+                },
+                SimilarBook: {
+                    allOf: [
+                        { $ref: '#/components/schemas/Book' },
+                        { type: 'object', properties: { similarity: { type: 'number', example: 0.82, description: 'Cosine similarity, 0–1' } } },
+                    ],
+                },
+            },
             securitySchemes: {
                 bearerAuth: {
                     type: 'http',
@@ -160,14 +195,7 @@ const parseLimit = (value: unknown, fallback = 6, max = 20) => {
  *             schema:
  *               type: array
  *               items:
- *                 type: object
- *                 properties:
- *                   id:
- *                     type: integer
- *                   title:
- *                     type: string
- *                   author:
- *                     type: string
+ *                 $ref: '#/components/schemas/Book'
  */
 // Main route: get all books (with optional search)
 app.get('/api/books', authenticateToken, async (req, res) => {
@@ -235,6 +263,10 @@ app.get('/api/books', authenticateToken, async (req, res) => {
  *     responses:
  *       200:
  *         description: A single book
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Book'
  *       404:
  *         description: Book not found
  */
@@ -274,6 +306,12 @@ app.get('/app/books/:id', async (req, res) => {
  *     responses:
  *       200:
  *         description: Ordered list of similar books
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/SimilarBook'
  *       400:
  *         description: Invalid book ID
  *       404:
@@ -368,7 +406,11 @@ app.get('/app/books/:id/similar', async (req, res) => {
  *                 type: string
  *     responses:
  *       201:
- *         description: Created
+ *         description: Created. The returned object is the initial record; cover, description and firstPublishedYear are saved right after, so fetch the book again to see them.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Book'
  *       400:
  *         description: Missing title
  *       401:
@@ -529,6 +571,12 @@ app.post('/api/books', authenticateToken, async (req, res) => {
  *     responses:
  *       200:
  *         description: Updated book object
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Book'
+ *       400:
+ *         description: Invalid firstPublishedYear, or cover image could not be fetched
  *       404:
  *         description: Book not found
  *       401:
@@ -647,6 +695,22 @@ app.patch('/api/books/:id', authenticateToken, async (req, res) => {
  *     responses:
  *       200:
  *         description: List of books with pagination info
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Book'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total: { type: integer }
+ *                     page: { type: integer }
+ *                     limit: { type: integer }
+ *                     totalPages: { type: integer }
  */
 app.get('/api/catalog', async (req, res) => {
     try {
